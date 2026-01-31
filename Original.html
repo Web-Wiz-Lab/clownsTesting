@@ -1,0 +1,2149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sling Schedule Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            padding: 40px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            margin-bottom: 30px;
+            color: #333;
+        }
+
+        .search-section {
+            margin-bottom: 30px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        label {
+            font-weight: bold;
+            color: #555;
+        }
+
+        input[type="date"] {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            background-color: white;
+            min-width: 120px;
+        }
+
+        .modern-time-select {
+            padding: 10px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 15px;
+            background-color: white;
+            min-width: 140px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            font-weight: 500;
+            color: #333;
+        }
+
+        .modern-time-select:hover {
+            border-color: #007bff;
+            box-shadow: 0 4px 8px rgba(0,123,255,0.15);
+            transform: translateY(-1px);
+        }
+
+        .modern-time-select:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
+        }
+
+        .modern-time-select optgroup {
+            font-weight: 700;
+            font-size: 13px;
+            color: #666;
+            padding: 8px 0;
+            font-style: normal;
+        }
+
+        .modern-time-select option {
+            padding: 10px 12px;
+            font-weight: 400;
+            font-size: 15px;
+            color: #333;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        button:hover:not(:disabled) {
+            background-color: #0056b3;
+        }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-edit {
+            padding: 6px 12px;
+            font-size: 13px;
+            background-color: #28a745;
+        }
+
+        .btn-edit:hover:not(:disabled) {
+            background-color: #218838;
+        }
+
+        .btn-update {
+            padding: 6px 12px;
+            font-size: 13px;
+            background-color: #ffc107;
+            color: #000;
+        }
+
+        .btn-update:hover:not(:disabled) {
+            background-color: #e0a800;
+        }
+
+        .btn-cancel {
+            padding: 6px 12px;
+            font-size: 13px;
+            background-color: #6c757d;
+            margin-left: 5px;
+        }
+
+        .btn-cancel:hover:not(:disabled) {
+            background-color: #5a6268;
+        }
+
+        .loading {
+            display: none;
+            color: #007bff;
+            font-style: italic;
+            margin-top: 10px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .error {
+            color: #dc3545;
+            padding: 15px;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .error.active {
+            display: block;
+        }
+
+        .success {
+            color: #155724;
+            padding: 15px;
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .success.active {
+            display: block;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            display: none;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        table.active {
+            display: table;
+        }
+
+        th {
+            background-color: #007bff;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: bold;
+        }
+
+        th:first-child {
+            border-top-left-radius: 8px;
+        }
+
+        th:last-child {
+            border-top-right-radius: 8px;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        tr.edited {
+            background-color: #fff3cd;
+        }
+
+        tr.edited td {
+            border-bottom-color: #ffc107;
+        }
+
+        .team-name {
+            font-weight: bold;
+            color: #007bff;
+            font-size: 16px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .status-badge.published {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .status-badge.published::before {
+            content: "● ";
+            color: #28a745;
+        }
+
+        .status-badge.unpublished {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .status-badge.unpublished::before {
+            content: "● ";
+            color: #ffc107;
+        }
+
+        .warning {
+            color: #856404;
+            padding: 15px;
+            background-color: #fff3cd;
+            border: 1px solid #ffeeba;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            display: none;
+            user-select: none;
+        }
+
+        .warning.active {
+            display: block;
+        }
+
+        .warning-text:hover {
+            background-color: #fff0b3;
+        }
+
+        .warning-text {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 5px;
+            margin: -5px;
+            border-radius: 4px;
+            transition: background-color 0.2s ease;
+        }
+
+        .warning-arrow {
+            font-size: 18px;
+            transition: transform 0.3s ease;
+        }
+
+        .warning-arrow.expanded {
+            transform: rotate(180deg);
+        }
+
+        .unmatched-shifts {
+            display: none;
+            margin-top: 15px;
+        }
+
+        .unmatched-shifts.active {
+            display: block;
+        }
+
+        .unmatched-explainer {
+            font-size: 13px;
+            color: #856404;
+            font-style: italic;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #ffeeba;
+        }
+
+        .unmatched-table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+            border-radius: 8px;
+            overflow: hidden;
+            display: table !important;
+        }
+
+        .unmatched-table th {
+            background-color: #ffc107;
+            color: #000;
+            padding: 10px;
+            text-align: left;
+            font-weight: bold;
+            font-size: 13px;
+        }
+
+        .unmatched-table th:first-child {
+            border-top-left-radius: 8px;
+        }
+
+        .unmatched-table th:last-child {
+            border-top-right-radius: 8px;
+        }
+
+        .unmatched-table td {
+            padding: 10px;
+            border-bottom: 1px solid #ffeeba;
+            font-size: 14px;
+        }
+
+        .unmatched-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .unmatched-table tr:hover {
+            background-color: #fffbf0;
+        }
+
+        .unmatched-table tr.edited {
+            background-color: #fff3cd;
+        }
+
+        .unmatched-table tr.edited td {
+            border-bottom-color: #ffc107;
+        }
+
+        .time-display {
+            display: inline;
+        }
+
+        .time-edit {
+            display: none;
+        }
+
+        .editing .time-display {
+            display: none;
+        }
+
+        .editing .time-edit {
+            display: inline;
+        }
+
+        .status-display {
+            display: inline;
+        }
+
+        .status-edit {
+            display: none;
+        }
+
+        .editing .status-display {
+            display: none;
+        }
+
+        .editing .status-edit {
+            display: inline;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-style: italic;
+            display: none;
+        }
+
+        .no-results.active {
+            display: block;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+        }
+
+        .bulk-controls {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 15px;
+            gap: 10px;
+        }
+
+        .btn-edit-all {
+            padding: 10px 20px;
+            background-color: #17a2b8;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .btn-edit-all:hover:not(:disabled) {
+            background-color: #138496;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(23, 162, 184, 0.3);
+        }
+
+        .btn-edit-all:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-update-all {
+            padding: 10px 20px;
+            background-color: #ffc107;
+            color: #000;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .btn-update-all:hover:not(:disabled) {
+            background-color: #e0a800;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(255, 193, 7, 0.3);
+        }
+
+        .btn-update-all:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-cancel-all {
+            padding: 10px 20px;
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .btn-cancel-all:hover:not(:disabled) {
+            background-color: #5a6268;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(108, 117, 125, 0.3);
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            min-width: 300px;
+        }
+
+        .modal-content h3 {
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 20px;
+        }
+
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #007bff;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes successFlash {
+            0%, 100% { background-color: transparent; }
+            15%, 35% { background-color: #d4edda; }
+            25%, 50% { background-color: transparent; }
+        }
+
+        .flash-success {
+            animation: successFlash 1.2s ease-in-out;
+        }
+
+        .success-icon {
+            font-size: 50px;
+            color: #28a745;
+            margin-bottom: 10px;
+        }
+
+        .error-icon {
+            font-size: 50px;
+            color: #dc3545;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Sling Schedule Manager</h1>
+        
+        <div class="search-section">
+            <label for="dateInput">Select Date:</label>
+            <input type="date" id="dateInput" required>
+            <button id="searchBtn" onclick="searchSchedule()">Search</button>
+        </div>
+
+        <div class="loading" id="loadingIndicator">Loading shifts...</div>
+        <div class="error" id="errorMessage"></div>
+        <div class="success" id="successMessage"></div>
+        <div class="warning" id="warningMessage">
+            <div class="warning-text" onclick="toggleUnmatchedShifts()" style="cursor: pointer;">
+                <span id="warningText"></span>
+                <span class="warning-arrow" id="warningArrow">▼</span>
+            </div>
+            <div class="unmatched-shifts" id="unmatchedShiftsContainer"></div>
+        </div>
+        <div class="no-results" id="noResults">No shifts found for this date.</div>
+
+        <div class="bulk-controls" id="bulkControls" style="display: none;">
+            <button class="btn-edit-all" id="editAllBtn" onclick="enterBulkEditMode()">Edit All</button>
+            <button class="btn-update-all" id="updateAllBtn" onclick="updateAllTeams()" style="display: none;">Update All</button>
+            <button class="btn-cancel-all" id="cancelAllBtn" onclick="cancelBulkEdit()" style="display: none;">Cancel</button>
+        </div>
+
+        <table id="resultsTable">
+            <thead>
+                <tr>
+                    <th>Team</th>
+                    <th>Main</th>
+                    <th>Assist</th>
+                    <th>Start</th>
+                    <th>End</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+            </tbody>
+        </table>
+    </div>
+
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal-content" id="modalContent">
+            <h3 id="modalMessage">Processing Request</h3>
+            <div class="loader" id="modalLoader"></div>
+            <div class="success-icon" id="modalSuccess" style="display: none;">✓</div>
+            <div class="error-icon" id="modalError" style="display: none;">✕</div>
+        </div>
+    </div>
+
+    <script>
+        let shiftsData = []; // Store the full shift objects
+        let teamsData = {}; // Store team groupings: { teamName: { mainShift, assistShift, mainName, assistName } }
+        let unmatchedShiftsData = []; // Store unmatched shifts
+        let bulkEditMode = false; // Track if in bulk edit mode
+        let bulkEditOriginalValues = {}; // Store original values for all teams during bulk edit
+        
+        const CASPIO_BASE_URL = 'https://c0ebl152.caspio.com/rest/v2';
+        const MAKE_WEBHOOK_URL = 'https://hook.us1.make.com/gcvwhpnw7fr8ptbg8d3dop5qyhmz6uqr';
+
+        // ========== CASPIO TOKEN MANAGEMENT ==========
+        
+        async function getCaspioToken() {
+            const stored = localStorage.getItem('caspioAuth');
+            
+            if (stored) {
+                const { token, expiresAt } = JSON.parse(stored);
+                const now = Date.now();
+                const fiveMinutes = 5 * 60 * 1000;
+                
+                // Token still valid with 5-minute buffer
+                if (expiresAt - now > fiveMinutes) {
+                    return token;
+                }
+            }
+            
+            // Fetch new token from Make.com webhook
+            return await fetchFreshToken();
+        }
+
+        async function fetchFreshToken() {
+            try {
+                const response = await fetch(MAKE_WEBHOOK_URL);
+                
+                if (!response.ok) {
+                    throw new Error(`Token fetch failed: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // Store token with expiry timestamp
+                localStorage.setItem('caspioAuth', JSON.stringify({
+                    token: data.access_token,
+                    expiresAt: Date.now() + (data.expires_in * 1000)
+                }));
+                
+                return data.access_token;
+            } catch (error) {
+                console.error('Error fetching Caspio token:', error);
+                throw new Error('Failed to authenticate with Caspio');
+            }
+        }
+
+        // ========== END CASPIO TOKEN MANAGEMENT ==========
+
+        // Generate time options from 6:00 AM to 11:00 PM in 15-minute intervals
+        function generateTimeOptions() {
+            const times = [];
+            for (let hour = 6; hour <= 23; hour++) {
+                for (let minute = 0; minute < 60; minute += 15) {
+                    const time24 = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+                    const time12 = formatTime24To12(time24);
+                    times.push({ value: time24, label: time12 });
+                }
+            }
+            return times;
+        }
+
+        function formatDateForCaspio(dateString) {
+            // Convert YYYY-MM-DD to MM/DD/YYYY
+            const [year, month, day] = dateString.split('-');
+            return `${month}/${day}/${year}`;
+        }
+
+        function formatTime24To12(time24) {
+            const [hours24, minutes] = time24.split(':');
+            let hours = parseInt(hours24);
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12;
+            hours = hours ? hours : 12;
+            return `${hours}:${minutes} ${ampm}`;
+        }
+
+        function createTimeSelect(selectedTime24, minTime24 = null) {
+            const select = document.createElement('select');
+            select.className = 'modern-time-select';
+            
+            // Convert minTime to minutes for comparison
+            let minMinutes = null;
+            if (minTime24) {
+                const [minHours, minMins] = minTime24.split(':').map(Number);
+                minMinutes = minHours * 60 + minMins;
+            }
+            
+            // Morning: 6:00 AM - 11:30 AM
+            const morningGroup = document.createElement('optgroup');
+            morningGroup.label = 'MORNING';
+            let hasMorningOptions = false;
+            
+            for (let hour = 6; hour <= 11; hour++) {
+                for (let minute = 0; minute < 60; minute += 15) {
+                    const time24 = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+                    const currentMinutes = hour * 60 + minute;
+                    
+                    // Skip if before minTime
+                    if (minMinutes !== null && currentMinutes <= minMinutes) {
+                        continue;
+                    }
+                    
+                    const time12 = formatTime24To12(time24);
+                    const option = document.createElement('option');
+                    option.value = time24;
+                    option.textContent = time12;
+                    if (time24 === selectedTime24) {
+                        option.selected = true;
+                    }
+                    morningGroup.appendChild(option);
+                    hasMorningOptions = true;
+                }
+            }
+            if (hasMorningOptions) {
+                select.appendChild(morningGroup);
+            }
+            
+            // Afternoon: 12:00 PM - 5:30 PM
+            const afternoonGroup = document.createElement('optgroup');
+            afternoonGroup.label = 'AFTERNOON';
+            let hasAfternoonOptions = false;
+            
+            for (let hour = 12; hour <= 17; hour++) {
+                for (let minute = 0; minute < 60; minute += 15) {
+                    const time24 = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+                    const currentMinutes = hour * 60 + minute;
+                    
+                    // Skip if before minTime
+                    if (minMinutes !== null && currentMinutes <= minMinutes) {
+                        continue;
+                    }
+                    
+                    const time12 = formatTime24To12(time24);
+                    const option = document.createElement('option');
+                    option.value = time24;
+                    option.textContent = time12;
+                    if (time24 === selectedTime24) {
+                        option.selected = true;
+                    }
+                    afternoonGroup.appendChild(option);
+                    hasAfternoonOptions = true;
+                }
+            }
+            if (hasAfternoonOptions) {
+                select.appendChild(afternoonGroup);
+            }
+            
+            // Evening: 6:00 PM - 11:30 PM
+            const eveningGroup = document.createElement('optgroup');
+            eveningGroup.label = 'EVENING';
+            let hasEveningOptions = false;
+            
+            for (let hour = 18; hour <= 23; hour++) {
+                for (let minute = 0; minute < 60; minute += 15) {
+                    const time24 = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+                    const currentMinutes = hour * 60 + minute;
+                    
+                    // Skip if before minTime
+                    if (minMinutes !== null && currentMinutes <= minMinutes) {
+                        continue;
+                    }
+                    
+                    const time12 = formatTime24To12(time24);
+                    const option = document.createElement('option');
+                    option.value = time24;
+                    option.textContent = time12;
+                    if (time24 === selectedTime24) {
+                        option.selected = true;
+                    }
+                    eveningGroup.appendChild(option);
+                    hasEveningOptions = true;
+                }
+            }
+            if (hasEveningOptions) {
+                select.appendChild(eveningGroup);
+            }
+            
+            return select;
+        }
+
+        function createStatusSelect(currentStatus) {
+            const select = document.createElement('select');
+            select.className = 'modern-time-select';
+            
+            const publishOption = document.createElement('option');
+            publishOption.value = 'published';
+            publishOption.textContent = 'Publish';
+            if (currentStatus === 'published') {
+                publishOption.selected = true;
+            }
+            select.appendChild(publishOption);
+            
+            const unpublishOption = document.createElement('option');
+            unpublishOption.value = 'planning';
+            unpublishOption.textContent = 'Unpublish';
+            if (currentStatus === 'planning') {
+                unpublishOption.selected = true;
+            }
+            select.appendChild(unpublishOption);
+            
+            return select;
+        }
+
+        function getTimeFromDateTime(dateTimeString) {
+             const timeMatch = dateTimeString.match(/T(\d{2}):(\d{2})/);
+             if (timeMatch) {
+                return `${timeMatch[1]}:${timeMatch[2]}`;
+             }
+
+            const date = new Date(dateTimeString);
+            const hours = date.getHours().toString().padStart(2, '0');
+            const minutes = date.getMinutes().toString().padStart(2, '0');
+            return `${hours}:${minutes}`;
+        }
+
+        function toggleUnmatchedShifts() {
+            const container = document.getElementById('unmatchedShiftsContainer');
+            const arrow = document.getElementById('warningArrow');
+            
+            container.classList.toggle('active');
+            arrow.classList.toggle('expanded');
+        }
+
+        function displayUnmatchedShifts(unmatchedShifts, userMap) {
+            const container = document.getElementById('unmatchedShiftsContainer');
+            container.innerHTML = '';
+            
+            // Add explainer text
+            const explainer = document.createElement('div');
+            explainer.className = 'unmatched-explainer';
+            explainer.textContent = 'These shifts exist in Sling but are not linked to any team assignment in Caspio.';
+            container.appendChild(explainer);
+            
+            // Create table
+            const table = document.createElement('table');
+            table.className = 'unmatched-table';
+            
+            const thead = document.createElement('thead');
+            thead.innerHTML = `
+                <tr>
+                    <th>Name</th>
+                    <th>Start</th>
+                    <th>End</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            `;
+            table.appendChild(thead);
+            
+            const tbody = document.createElement('tbody');
+            
+            unmatchedShifts.forEach((shift, index) => {
+                const userName = userMap[shift.user.id.toString()] || `User ${shift.user.id}`;
+                const startTime = formatTime(shift.dtstart);
+                const endTime = formatTime(shift.dtend);
+                const status = shift.status === 'published' ? 'Published' : 'Unpublished';
+                const statusClass = shift.status === 'published' ? 'published' : 'unpublished';
+                
+                const row = document.createElement('tr');
+                row.dataset.unmatchedIndex = index;
+                row.dataset.originalStart = getTimeFromDateTime(shift.dtstart);
+                row.dataset.originalEnd = getTimeFromDateTime(shift.dtend);
+                row.dataset.originalStatus = shift.status;
+                
+                row.innerHTML = `
+                    <td><strong>${userName}</strong></td>
+                    <td class="time-cell">
+                        <span class="time-display">${startTime}</span>
+                        <span class="time-edit"></span>
+                    </td>
+                    <td class="time-cell">
+                        <span class="time-display">${endTime}</span>
+                        <span class="time-edit"></span>
+                    </td>
+                    <td class="status-cell">
+                        <span class="status-display"><span class="status-badge ${statusClass}">${status}</span></span>
+                        <span class="status-edit"></span>
+                    </td>
+                    <td>
+                        <div class="action-buttons">
+                            <button class="btn-edit" onclick="editUnmatchedShift(${index})">Edit</button>
+                        </div>
+                    </td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+            
+            table.appendChild(tbody);
+            container.appendChild(table);
+        }
+
+        function editUnmatchedShift(index) {
+            const row = document.querySelector(`tr[data-unmatched-index="${index}"]`);
+            const shift = unmatchedShiftsData[index];
+            
+            row.classList.add('editing');
+            
+            const startTimeCell = row.querySelectorAll('.time-cell')[0];
+            const endTimeCell = row.querySelectorAll('.time-cell')[1];
+            const statusCell = row.querySelector('.status-cell');
+            
+            const startTime24 = getTimeFromDateTime(shift.dtstart);
+            const endTime24 = getTimeFromDateTime(shift.dtend);
+            
+            const startSelect = createTimeSelect(startTime24);
+            const endSelect = createTimeSelect(endTime24, startTime24); // Pass minTime
+            const statusSelect = createStatusSelect(shift.status);
+            
+            // When start time changes, regenerate end time select with new constraint
+            startSelect.addEventListener('change', () => {
+                const newStartTime = startSelect.value;
+                const currentEndTime = endSelect.value;
+                
+                // Regenerate end select
+                const newEndSelect = createTimeSelect(currentEndTime, newStartTime);
+                
+                // Preserve event listeners
+                newEndSelect.addEventListener('change', () => checkIfUnmatchedEdited(index));
+                
+                // Replace old select
+                endTimeCell.querySelector('.time-edit').innerHTML = '';
+                endTimeCell.querySelector('.time-edit').appendChild(newEndSelect);
+                
+                checkIfUnmatchedEdited(index);
+            });
+            
+            endSelect.addEventListener('change', () => checkIfUnmatchedEdited(index));
+            statusSelect.addEventListener('change', () => checkIfUnmatchedEdited(index));
+            
+            startTimeCell.querySelector('.time-edit').appendChild(startSelect);
+            endTimeCell.querySelector('.time-edit').appendChild(endSelect);
+            statusCell.querySelector('.status-edit').appendChild(statusSelect);
+            
+            const actionCell = row.querySelector('.action-buttons');
+            actionCell.innerHTML = `
+                <button class="btn-update" onclick="updateUnmatchedShift(${index})">Update</button>
+                <button class="btn-cancel" onclick="cancelUnmatchedEdit(${index})">Cancel</button>
+            `;
+        }
+
+        function checkIfUnmatchedEdited(index) {
+            const row = document.querySelector(`tr[data-unmatched-index="${index}"]`);
+            const startSelect = row.querySelectorAll('.time-cell')[0].querySelector('select');
+            const endSelect = row.querySelectorAll('.time-cell')[1].querySelector('select');
+            const statusSelect = row.querySelector('.status-cell select');
+            
+            const originalStart = row.dataset.originalStart;
+            const originalEnd = row.dataset.originalEnd;
+            const originalStatus = row.dataset.originalStatus;
+            
+            if (startSelect.value !== originalStart || endSelect.value !== originalEnd || statusSelect.value !== originalStatus) {
+                row.classList.add('edited');
+            } else {
+                row.classList.remove('edited');
+            }
+        }
+
+        function cancelUnmatchedEdit(index) {
+            const row = document.querySelector(`tr[data-unmatched-index="${index}"]`);
+            
+            row.classList.remove('editing');
+            row.classList.remove('edited');
+            
+            const startTimeCell = row.querySelectorAll('.time-cell')[0];
+            const endTimeCell = row.querySelectorAll('.time-cell')[1];
+            const statusCell = row.querySelector('.status-cell');
+            
+            startTimeCell.querySelector('.time-edit').innerHTML = '';
+            endTimeCell.querySelector('.time-edit').innerHTML = '';
+            statusCell.querySelector('.status-edit').innerHTML = '';
+            
+            const actionCell = row.querySelector('.action-buttons');
+            actionCell.innerHTML = `<button class="btn-edit" onclick="editUnmatchedShift(${index})">Edit</button>`;
+        }
+
+        async function updateUnmatchedShift(index) {
+            const row = document.querySelector(`tr[data-unmatched-index="${index}"]`);
+            const shift = { ...unmatchedShiftsData[index] };
+            
+            // Set openEnd to true by default for any edit
+            shift.openEnd = true;
+            
+            const startSelect = row.querySelectorAll('.time-cell')[0].querySelector('select');
+            const endSelect = row.querySelectorAll('.time-cell')[1].querySelector('select');
+            const statusSelect = row.querySelector('.status-cell select');
+            
+            if (!startSelect || !endSelect || !statusSelect) {
+                alert('Error: Selects not found');
+                return;
+            }
+            
+            const newStartTime = startSelect.value;
+            const newEndTime = endSelect.value;
+            const newStatus = statusSelect.value;
+            
+            const originalStart = row.dataset.originalStart;
+            const originalEnd = row.dataset.originalEnd;
+            const originalStatus = row.dataset.originalStatus;
+            
+            const timeChanged = newStartTime !== originalStart || newEndTime !== originalEnd;
+            const statusChanged = newStatus !== originalStatus;
+            
+            if (!timeChanged && !statusChanged) {
+                cancelUnmatchedEdit(index);
+                return;
+            }
+            
+            // Disable buttons during request
+            const updateBtn = row.querySelector('.btn-update');
+            const cancelBtn = row.querySelector('.btn-cancel');
+            updateBtn.disabled = true;
+            cancelBtn.disabled = true;
+            updateBtn.textContent = 'Updating...';
+            
+            try {
+                // Update times if changed
+                if (timeChanged) {
+                    const timezoneMatch = shift.dtstart.match(/([+-]\d{2}:\d{2}|Z)$/);
+                    const timezone = timezoneMatch ? timezoneMatch[0] : 'Z';
+                    const dateOnly = shift.dtstart.split('T')[0];
+
+                    shift.dtstart = `${dateOnly}T${newStartTime}:00${timezone}`;
+                    shift.dtend = `${dateOnly}T${newEndTime}:00${timezone}`;
+                    
+                    const timeApiUrl = `https://api.getsling.com/v1/shifts/${shift.id}`;
+                    const timeProxyUrl = `https://corsproxy.io/?${encodeURIComponent(timeApiUrl)}`;
+
+                    const timeResponse = await fetch(timeProxyUrl, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': '*/*',
+                            'Authorization': 'fcf843c7480e43d9a42e0a94f546158d'
+                        },
+                        body: JSON.stringify(shift)
+                    });
+
+                    if (!timeResponse.ok) {
+                        throw new Error(`${label} time update failed: ${timeResponse.status} ${timeResponse.statusText}`);
+                    }
+                }
+                
+                // Update status if changed
+                if (statusChanged) {
+                    shift.status = newStatus;
+                    
+                    const statusApiUrl = `https://api.getsling.com/v1/shifts/${shift.id}`;
+                    const statusProxyUrl = `https://corsproxy.io/?${encodeURIComponent(statusApiUrl)}`;
+
+                    const statusResponse = await fetch(statusProxyUrl, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': '*/*',
+                            'Authorization': 'fcf843c7480e43d9a42e0a94f546158d'
+                        },
+                        body: JSON.stringify(shift)
+                    });
+
+                    if (!statusResponse.ok) {
+                        throw new Error(`${label} status update failed: ${statusResponse.status} ${statusResponse.statusText}`);
+                    }
+                }
+                
+                // Update stored shift data
+                unmatchedShiftsData[index] = shift;
+                
+                // Update the display
+                if (timeChanged) {
+                    row.querySelectorAll('.time-cell')[0].querySelector('.time-display').textContent = formatTime(shift.dtstart);
+                    row.querySelectorAll('.time-cell')[1].querySelector('.time-display').textContent = formatTime(shift.dtend);
+                    row.dataset.originalStart = newStartTime;
+                    row.dataset.originalEnd = newEndTime;
+                }
+                
+                if (statusChanged) {
+                    const statusClass = newStatus === 'published' ? 'published' : 'unpublished';
+                    const statusText = newStatus === 'published' ? 'Published' : 'Unpublished';
+                    row.querySelector('.status-cell .status-display').innerHTML = `<span class="status-badge ${statusClass}">${statusText}</span>`;
+                    row.dataset.originalStatus = newStatus;
+                }
+                
+                // Exit edit mode
+                row.classList.remove('editing');
+                row.classList.remove('edited');
+                
+                row.querySelectorAll('.time-edit').forEach(el => el.innerHTML = '');
+                row.querySelector('.status-edit').innerHTML = '';
+                
+                const actionCell = row.querySelector('.action-buttons');
+                actionCell.innerHTML = `<button class="btn-edit" onclick="editUnmatchedShift(${index})">Edit</button>`;
+                
+                // Flash the row green to indicate success
+                row.classList.add('flash-success');
+                setTimeout(() => row.classList.remove('flash-success'), 1200);
+                
+                // Show success message
+                const successMessage = document.getElementById('successMessage');
+                successMessage.textContent = 'Shift updated successfully!';
+                successMessage.classList.add('active');
+                setTimeout(() => successMessage.classList.remove('active'), 3000);
+                
+            } catch (error) {
+                console.error('Error updating shift:', error);
+                const errorMessage = document.getElementById('errorMessage');
+                errorMessage.textContent = `Error updating shift: ${error.message}`;
+                errorMessage.classList.add('active');
+                
+                // Re-enable buttons
+                updateBtn.disabled = false;
+                cancelBtn.disabled = false;
+                updateBtn.textContent = 'Update';
+            }
+        }
+
+        async function fetchCaspioTeamAssignments(dateString) {
+            const caspioDate = formatDateForCaspio(dateString);
+            const url = `${CASPIO_BASE_URL}/views/v_Staff_Assingment_Sling_ID/records?q.select=tbl_team_assignment_Start_Date,tbl_team_assignment_Team,tbl_team_assignment_Team_Main_ID,tbl_team_assignment_Team_Assist_ID,tbl_entertainers_Sling_ID&q.where=tbl_team_assignment_Start_Date='${caspioDate}'`;
+            
+            // Get fresh token
+            const token = await getCaspioToken();
+            
+            // Try direct call first (Caspio may allow CORS)
+            try {
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                // If 401/403, token might be invalid - fetch new one and retry
+                if (response.status === 401 || response.status === 403) {
+                    console.log('Caspio auth failed, fetching new token...');
+                    const newToken = await fetchFreshToken();
+                    
+                    const retryResponse = await fetch(url, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Authorization': `Bearer ${newToken}`
+                        }
+                    });
+                    
+                    if (retryResponse.ok) {
+                        const data = await retryResponse.json();
+                        return data.Result || [];
+                    }
+                }
+
+                if (response.ok) {
+                    const data = await response.json();
+                    return data.Result || [];
+                }
+            } catch (directError) {
+                console.log('Direct Caspio call failed, trying with proxy:', directError);
+            }
+            
+            // If direct fails, try with proxy
+            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+            const response = await fetch(proxyUrl, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            // Retry with new token if auth failed
+            if (response.status === 401 || response.status === 403) {
+                console.log('Caspio auth failed (proxy), fetching new token...');
+                const newToken = await fetchFreshToken();
+                
+                const retryResponse = await fetch(proxyUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Authorization': `Bearer ${newToken}`
+                    }
+                });
+                
+                if (!retryResponse.ok) {
+                    throw new Error(`Caspio team assignment fetch failed: ${retryResponse.status}`);
+                }
+                
+                const data = await retryResponse.json();
+                return data.Result || [];
+            }
+
+            if (!response.ok) {
+                throw new Error(`Caspio team assignment fetch failed: ${response.status}`);
+            }
+
+            const data = await response.json();
+            return data.Result || [];
+        }
+
+        async function fetchCaspioEntertainerSlingIDs(entertainerIds) {
+            if (!entertainerIds || entertainerIds.length === 0) return [];
+            
+            const idsString = entertainerIds.map(id => `'${id}'`).join(',');
+            const url = `${CASPIO_BASE_URL}/tables/tbl_entertainers/records?q.select=SLING_ID,Entertainer_ID&q.where=Entertainer_ID IN (${idsString})`;
+            
+            // Get fresh token
+            const token = await getCaspioToken();
+            
+            // Try direct call first
+            try {
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                // If 401/403, token might be invalid - fetch new one and retry
+                if (response.status === 401 || response.status === 403) {
+                    console.log('Caspio auth failed, fetching new token...');
+                    const newToken = await fetchFreshToken();
+                    
+                    const retryResponse = await fetch(url, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Authorization': `Bearer ${newToken}`
+                        }
+                    });
+                    
+                    if (retryResponse.ok) {
+                        const data = await retryResponse.json();
+                        return data.Result || [];
+                    }
+                }
+
+                if (response.ok) {
+                    const data = await response.json();
+                    return data.Result || [];
+                }
+            } catch (directError) {
+                console.log('Direct Caspio call failed, trying with proxy:', directError);
+            }
+            
+            // If direct fails, try with proxy
+            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+            const response = await fetch(proxyUrl, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            // Retry with new token if auth failed
+            if (response.status === 401 || response.status === 403) {
+                console.log('Caspio auth failed (proxy), fetching new token...');
+                const newToken = await fetchFreshToken();
+                
+                const retryResponse = await fetch(proxyUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Authorization': `Bearer ${newToken}`
+                    }
+                });
+                
+                if (!retryResponse.ok) {
+                    throw new Error(`Caspio entertainer fetch failed: ${retryResponse.status}`);
+                }
+                
+                const data = await retryResponse.json();
+                return data.Result || [];
+            }
+
+            if (!response.ok) {
+                throw new Error(`Caspio entertainer fetch failed: ${response.status}`);
+            }
+
+            const data = await response.json();
+            return data.Result || [];
+        }
+
+        async function searchSchedule() {
+            const dateInput = document.getElementById('dateInput');
+            const searchBtn = document.getElementById('searchBtn');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const errorMessage = document.getElementById('errorMessage');
+            const successMessage = document.getElementById('successMessage');
+            const warningMessage = document.getElementById('warningMessage');
+            const noResults = document.getElementById('noResults');
+            const resultsTable = document.getElementById('resultsTable');
+            const tableBody = document.getElementById('tableBody');
+
+            if (!dateInput.value) {
+                alert('Please select a date');
+                return;
+            }
+
+            errorMessage.classList.remove('active');
+            successMessage.classList.remove('active');
+            warningMessage.classList.remove('active');
+            noResults.classList.remove('active');
+            resultsTable.classList.remove('active');
+            tableBody.innerHTML = '';
+            shiftsData = [];
+            teamsData = {};
+            unmatchedShiftsData = [];
+            bulkEditMode = false;
+            bulkEditOriginalValues = {};
+            
+            // Hide and reset bulk controls
+            document.getElementById('bulkControls').style.display = 'none';
+            document.getElementById('editAllBtn').style.display = 'inline-block';
+            document.getElementById('editAllBtn').disabled = false;
+            document.getElementById('updateAllBtn').style.display = 'none';
+            document.getElementById('cancelAllBtn').style.display = 'none';
+
+            searchBtn.disabled = true;
+            loadingIndicator.classList.add('active');
+
+            const dateRange = `${dateInput.value}/${dateInput.value}`;
+            const apiUrl = `https://api.getsling.com/v1/calendar/7858/users/21341367?dates=${dateRange}`;
+            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(apiUrl)}`;
+
+            try {
+                // Step 1: Fetch Sling shifts
+                const response = await fetch(proxyUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': '*/*',
+                        'Authorization': 'fbea7cd696b24dec92fcc1602d3ee79c'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Sling API Error: ${response.status} ${response.statusText}`);
+                }
+
+                const allShifts = await response.json();
+
+                const shifts = allShifts.filter(shift => shift.type === 'shift');
+
+                if (!shifts || shifts.length === 0) {
+                    noResults.classList.add('active');
+                    return;
+                }
+
+                shiftsData = shifts;
+
+                // Step 2: Fetch Caspio team assignments
+                const teamAssignments = await fetchCaspioTeamAssignments(dateInput.value);
+
+                if (!teamAssignments || teamAssignments.length === 0) {
+                    const warningText = document.getElementById('warningText');
+                    warningText.textContent = 'Warning: No team assignments found in Caspio for this date.';
+                    warningMessage.classList.add('active');
+                    return;
+                }
+
+                // Step 3: Get assist entertainer Sling IDs
+                const assistIds = teamAssignments.map(t => t.tbl_team_assignment_Team_Assist_ID);
+                const assistEntertainerData = await fetchCaspioEntertainerSlingIDs(assistIds);
+
+                // Create map of Entertainer_ID to SLING_ID
+                const assistMap = {};
+                assistEntertainerData.forEach(ent => {
+                    assistMap[ent.Entertainer_ID] = ent.SLING_ID;
+                });
+
+                // Step 4: Build teams structure
+                teamAssignments.forEach(assignment => {
+                    const teamName = assignment.tbl_team_assignment_Team;
+                    const mainSlingId = assignment.tbl_entertainers_Sling_ID;
+                    const assistSlingId = assistMap[assignment.tbl_team_assignment_Team_Assist_ID];
+
+                    // Find shifts for both team members
+                    const mainShift = shifts.find(s => s.user.id.toString() === mainSlingId);
+                    const assistShift = shifts.find(s => s.user.id.toString() === assistSlingId);
+
+                    if (mainShift && assistShift) {
+                        teamsData[teamName] = {
+                            mainShift,
+                            assistShift,
+                            mainSlingId,
+                            assistSlingId,
+                            teamName
+                        };
+                    }
+                });
+
+                // Check if we have any matched teams
+                if (Object.keys(teamsData).length === 0) {
+                    const warningText = document.getElementById('warningText');
+                    warningText.textContent = 'Warning: No shifts matched to team assignments.';
+                    warningMessage.classList.add('active');
+                    return;
+                }
+
+                // Step 5: Get user names for all Sling IDs
+                const allSlingIds = Object.values(teamsData).flatMap(team => [team.mainSlingId, team.assistSlingId]);
+                const uniqueSlingIds = [...new Set(allSlingIds)];
+                
+                const usersApiUrl = `https://api.getsling.com/v1/users?ids=${uniqueSlingIds.join(',')}`;
+                const usersProxyUrl = `https://corsproxy.io/?${encodeURIComponent(usersApiUrl)}`;
+
+                const usersResponse = await fetch(usersProxyUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': '*/*',
+                        'Authorization': 'fcf843c7480e43d9a42e0a94f546158d'
+                    }
+                });
+
+                if (!usersResponse.ok) {
+                    throw new Error(`Users API Error: ${usersResponse.status} ${usersResponse.statusText}`);
+                }
+
+                const users = await usersResponse.json();
+
+                const userMap = {};
+                users.forEach(user => {
+                    userMap[user.id.toString()] = user.name;
+                });
+
+                // Step 6: Display teams
+                Object.keys(teamsData).forEach((teamName, index) => {
+                    const team = teamsData[teamName];
+                    const mainName = userMap[team.mainSlingId] || team.mainSlingId;
+                    const assistName = userMap[team.assistSlingId] || team.assistSlingId;
+                    
+                    // Assuming both shifts have same times (they're a team)
+                    const startTime = formatTime(team.mainShift.dtstart);
+                    const endTime = formatTime(team.mainShift.dtend);
+                    const status = team.mainShift.status;
+                    const statusClass = status === 'published' ? 'published' : 'unpublished';
+                    const statusText = status === 'published' ? 'Published' : 'Unpublished';
+
+                    const row = document.createElement('tr');
+                    row.dataset.teamIndex = index;
+                    row.dataset.teamName = teamName;
+                    row.dataset.originalStart = getTimeFromDateTime(team.mainShift.dtstart);
+                    row.dataset.originalEnd = getTimeFromDateTime(team.mainShift.dtend);
+                    row.dataset.originalStatus = status;
+
+                    row.innerHTML = `
+                        <td><span class="team-name">${teamName}</span></td>
+                        <td>${mainName}</td>
+                        <td>${assistName}</td>
+                        <td class="time-cell">
+                            <span class="time-display">${startTime}</span>
+                            <span class="time-edit"></span>
+                        </td>
+                        <td class="time-cell">
+                            <span class="time-display">${endTime}</span>
+                            <span class="time-edit"></span>
+                        </td>
+                        <td class="status-cell">
+                            <span class="status-display"><span class="status-badge ${statusClass}">${statusText}</span></span>
+                            <span class="status-edit"></span>
+                        </td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="btn-edit" onclick="editTeam('${teamName}')">Edit</button>
+                            </div>
+                        </td>
+                    `;
+
+                    tableBody.appendChild(row);
+                });
+
+                resultsTable.classList.add('active');
+                
+                // Show bulk controls
+                document.getElementById('bulkControls').style.display = 'flex';
+
+                // Check for unmatched shifts
+                const matchedSlingIds = Object.values(teamsData).flatMap(t => [t.mainSlingId, t.assistSlingId]);
+                const unmatchedShifts = shifts.filter(s => !matchedSlingIds.includes(s.user.id.toString()));
+                
+                if (unmatchedShifts.length > 0) {
+                    unmatchedShiftsData = unmatchedShifts;
+                    
+                    // Fetch user names for unmatched shifts
+                    const unmatchedSlingIds = unmatchedShifts.map(s => s.user.id.toString());
+
+                    const unmatchedUsersUrl = `https://api.getsling.com/v1/users?ids=${unmatchedSlingIds.join(',')}`;
+                    const unmatchedUsersProxy = `https://corsproxy.io/?${encodeURIComponent(unmatchedUsersUrl)}`;
+
+                    const unmatchedUsersResponse = await fetch(unmatchedUsersProxy, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': '*/*',
+                            'Authorization': 'fcf843c7480e43d9a42e0a94f546158d'
+                        }
+                    });
+
+                    if (unmatchedUsersResponse.ok) {
+                        const unmatchedUsers = await unmatchedUsersResponse.json();
+                        unmatchedUsers.forEach(user => {
+                            userMap[user.id.toString()] = user.name;
+                        });
+                    }
+                    
+                    displayUnmatchedShifts(unmatchedShifts, userMap);
+                    
+                    const warningText = document.getElementById('warningText');
+                    const shiftWord = unmatchedShifts.length === 1 ? 'shift' : 'shifts';
+                    warningText.textContent = `Warning: ${unmatchedShifts.length} ${shiftWord} could not be matched to a team. (Click to expand)`;
+                    warningMessage.classList.add('active');
+                }
+
+            } catch (error) {
+                console.error('Error fetching schedule:', error);
+                errorMessage.textContent = `Error: ${error.message}`;
+                errorMessage.classList.add('active');
+            } finally {
+                searchBtn.disabled = false;
+                loadingIndicator.classList.remove('active');
+            }
+        }
+
+        function editTeam(teamName) {
+            const row = document.querySelector(`tr[data-team-name="${teamName}"]`);
+            const team = teamsData[teamName];
+            
+            row.classList.add('editing');
+            
+            // Disable Edit All button during individual edit
+            document.getElementById('editAllBtn').disabled = true;
+            
+            const startTimeCell = row.querySelectorAll('.time-cell')[0];
+            const endTimeCell = row.querySelectorAll('.time-cell')[1];
+            const statusCell = row.querySelector('.status-cell');
+            
+            const startTime24 = getTimeFromDateTime(team.mainShift.dtstart);
+            const endTime24 = getTimeFromDateTime(team.mainShift.dtend);
+            
+            const startSelect = createTimeSelect(startTime24);
+            const endSelect = createTimeSelect(endTime24, startTime24); // Pass minTime
+            const statusSelect = createStatusSelect(team.mainShift.status);
+            
+            // When start time changes, regenerate end time select with new constraint
+            startSelect.addEventListener('change', () => {
+                const newStartTime = startSelect.value;
+                const currentEndTime = endSelect.value;
+                
+                // Regenerate end select
+                const newEndSelect = createTimeSelect(currentEndTime, newStartTime);
+                
+                // Preserve event listeners
+                newEndSelect.addEventListener('change', () => checkIfTeamEdited(teamName));
+                
+                // Replace old select
+                endTimeCell.querySelector('.time-edit').innerHTML = '';
+                endTimeCell.querySelector('.time-edit').appendChild(newEndSelect);
+                
+                checkIfTeamEdited(teamName);
+            });
+            
+            endSelect.addEventListener('change', () => checkIfTeamEdited(teamName));
+            statusSelect.addEventListener('change', () => checkIfTeamEdited(teamName));
+            
+            startTimeCell.querySelector('.time-edit').appendChild(startSelect);
+            endTimeCell.querySelector('.time-edit').appendChild(endSelect);
+            statusCell.querySelector('.status-edit').appendChild(statusSelect);
+            
+            const actionCell = row.querySelector('.action-buttons');
+            actionCell.innerHTML = `
+                <button class="btn-update" onclick="updateTeam('${teamName}')">Update</button>
+                <button class="btn-cancel" onclick="cancelTeamEdit('${teamName}')">Cancel</button>
+            `;
+        }
+
+        function checkIfTeamEdited(teamName) {
+            const row = document.querySelector(`tr[data-team-name="${teamName}"]`);
+            const startSelect = row.querySelectorAll('.time-cell')[0].querySelector('select');
+            const endSelect = row.querySelectorAll('.time-cell')[1].querySelector('select');
+            const statusSelect = row.querySelector('.status-cell select');
+            
+            const originalStart = row.dataset.originalStart;
+            const originalEnd = row.dataset.originalEnd;
+            const originalStatus = row.dataset.originalStatus;
+            
+            if (startSelect.value !== originalStart || endSelect.value !== originalEnd || statusSelect.value !== originalStatus) {
+                row.classList.add('edited');
+            } else {
+                row.classList.remove('edited');
+            }
+        }
+
+        function cancelTeamEdit(teamName) {
+            const row = document.querySelector(`tr[data-team-name="${teamName}"]`);
+            
+            row.classList.remove('editing');
+            row.classList.remove('edited');
+            
+            // Re-enable Edit All button
+            document.getElementById('editAllBtn').disabled = false;
+            
+            const startTimeCell = row.querySelectorAll('.time-cell')[0];
+            const endTimeCell = row.querySelectorAll('.time-cell')[1];
+            const statusCell = row.querySelector('.status-cell');
+            
+            startTimeCell.querySelector('.time-edit').innerHTML = '';
+            endTimeCell.querySelector('.time-edit').innerHTML = '';
+            statusCell.querySelector('.status-edit').innerHTML = '';
+            
+            const actionCell = row.querySelector('.action-buttons');
+            actionCell.innerHTML = `<button class="btn-edit" onclick="editTeam('${teamName}')">Edit</button>`;
+        }
+
+        async function updateTeam(teamName) {
+            const row = document.querySelector(`tr[data-team-name="${teamName}"]`);
+            const team = teamsData[teamName];
+            
+            const mainShift = { ...team.mainShift };
+            const assistShift = { ...team.assistShift };
+            
+            // Set openEnd to true by default for any edit
+            mainShift.openEnd = true;
+            assistShift.openEnd = true;
+            
+            const startSelect = row.querySelectorAll('.time-cell')[0].querySelector('select');
+            const endSelect = row.querySelectorAll('.time-cell')[1].querySelector('select');
+            const statusSelect = row.querySelector('.status-cell select');
+            
+            if (!startSelect || !endSelect || !statusSelect) {
+                alert('Error: Selects not found');
+                return;
+            }
+            
+            const newStartTime = startSelect.value;
+            const newEndTime = endSelect.value;
+            const newStatus = statusSelect.value;
+            
+            const originalStart = row.dataset.originalStart;
+            const originalEnd = row.dataset.originalEnd;
+            const originalStatus = row.dataset.originalStatus;
+            
+            const timeChanged = newStartTime !== originalStart || newEndTime !== originalEnd;
+            const statusChanged = newStatus !== originalStatus;
+            
+            if (!timeChanged && !statusChanged) {
+                cancelTeamEdit(teamName);
+                return;
+            }
+            
+            // Disable buttons during request
+            const updateBtn = row.querySelector('.btn-update');
+            const cancelBtn = row.querySelector('.btn-cancel');
+            updateBtn.disabled = true;
+            cancelBtn.disabled = true;
+            updateBtn.textContent = 'Updating...';
+            
+            try {
+                // Update both main and assist shifts
+                const shiftsToUpdate = [
+                    { shift: mainShift, label: 'Main' },
+                    { shift: assistShift, label: 'Assist' }
+                ];
+                
+                for (const { shift, label } of shiftsToUpdate) {
+                    // First: Update times if changed
+                    if (timeChanged) {
+                        const timezoneMatch = shift.dtstart.match(/([+-]\d{2}:\d{2}|Z)$/);
+                        const timezone = timezoneMatch ? timezoneMatch[0] : 'Z';
+                        const dateOnly = shift.dtstart.split('T')[0];
+
+                        shift.dtstart = `${dateOnly}T${newStartTime}:00${timezone}`;
+                        shift.dtend = `${dateOnly}T${newEndTime}:00${timezone}`;
+                        
+                        const timeApiUrl = `https://api.getsling.com/v1/shifts/${shift.id}`;
+                        const timeProxyUrl = `https://corsproxy.io/?${encodeURIComponent(timeApiUrl)}`;
+
+                        const timeResponse = await fetch(timeProxyUrl, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': '*/*',
+                                'Authorization': 'fcf843c7480e43d9a42e0a94f546158d'
+                            },
+                            body: JSON.stringify(shift)
+                        });
+
+                        if (!timeResponse.ok) {
+                            throw new Error(`Time update failed: ${timeResponse.status} ${timeResponse.statusText}`);
+                        }
+                    }
+                    
+                    // Second: Update status if changed
+                    if (statusChanged) {
+                        shift.status = newStatus;
+                        
+                        const statusApiUrl = `https://api.getsling.com/v1/shifts/${shift.id}`;
+                        const statusProxyUrl = `https://corsproxy.io/?${encodeURIComponent(statusApiUrl)}`;
+
+                        const statusResponse = await fetch(statusProxyUrl, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': '*/*',
+                                'Authorization': 'fcf843c7480e43d9a42e0a94f546158d'
+                            },
+                            body: JSON.stringify(shift)
+                        });
+
+                        if (!statusResponse.ok) {
+                            throw new Error(`Status update failed: ${statusResponse.status} ${statusResponse.statusText}`);
+                        }
+                    }
+                }
+                
+                // Update stored team data
+                teamsData[teamName].mainShift = mainShift;
+                teamsData[teamName].assistShift = assistShift;
+                
+                // Update the display
+                if (timeChanged) {
+                    row.querySelector('.time-cell:nth-child(4) .time-display').textContent = formatTime(mainShift.dtstart);
+                    row.querySelector('.time-cell:nth-child(5) .time-display').textContent = formatTime(mainShift.dtend);
+                    row.dataset.originalStart = newStartTime;
+                    row.dataset.originalEnd = newEndTime;
+                }
+                
+                if (statusChanged) {
+                    const statusClass = newStatus === 'published' ? 'published' : 'unpublished';
+                    const statusText = newStatus === 'published' ? 'Published' : 'Unpublished';
+                    row.querySelector('.status-cell .status-display').innerHTML = `<span class="status-badge ${statusClass}">${statusText}</span>`;
+                    row.dataset.originalStatus = newStatus;
+                }
+                
+                // Exit edit mode
+                row.classList.remove('editing');
+                row.classList.remove('edited');
+                
+                row.querySelectorAll('.time-edit').forEach(el => el.innerHTML = '');
+                row.querySelector('.status-edit').innerHTML = '';
+                
+                const actionCell = row.querySelector('.action-buttons');
+                actionCell.innerHTML = `<button class="btn-edit" onclick="editTeam('${teamName}')">Edit</button>`;
+                
+                // Re-enable Edit All button
+                document.getElementById('editAllBtn').disabled = false;
+                
+                // Flash the row green to indicate success
+                row.classList.add('flash-success');
+                setTimeout(() => row.classList.remove('flash-success'), 1200);
+                
+                // Show success message
+                const successMessage = document.getElementById('successMessage');
+                successMessage.textContent = 'Team updated successfully!';
+                successMessage.classList.add('active');
+                setTimeout(() => successMessage.classList.remove('active'), 3000);
+                
+            } catch (error) {
+                console.error('Error updating team:', error);
+                const errorMessage = document.getElementById('errorMessage');
+                errorMessage.textContent = `Error updating team: ${error.message}`;
+                errorMessage.classList.add('active');
+                
+                // Re-enable buttons
+                updateBtn.disabled = false;
+                cancelBtn.disabled = false;
+                updateBtn.textContent = 'Update';
+            }
+        }
+
+        // ========== BULK EDIT FUNCTIONS ==========
+
+        function checkIfAnyTeamBeingEdited() {
+            // Check if any team row is currently in editing mode
+            const editingRows = document.querySelectorAll('tr.editing');
+            return editingRows.length > 0;
+        }
+
+        function enterBulkEditMode() {
+            if (checkIfAnyTeamBeingEdited()) {
+                alert('Please finish or cancel the current edit before using Edit All');
+                return;
+            }
+
+            bulkEditMode = true;
+            bulkEditOriginalValues = {};
+
+            // Store original values for all teams
+            Object.keys(teamsData).forEach(teamName => {
+                const team = teamsData[teamName];
+                bulkEditOriginalValues[teamName] = {
+                    start: getTimeFromDateTime(team.mainShift.dtstart),
+                    end: getTimeFromDateTime(team.mainShift.dtend),
+                    status: team.mainShift.status
+                };
+            });
+
+            // Enter edit mode for all team rows
+            Object.keys(teamsData).forEach(teamName => {
+                const row = document.querySelector(`tr[data-team-name="${teamName}"]`);
+                const team = teamsData[teamName];
+                
+                row.classList.add('editing', 'bulk-editing');
+                
+                const startTimeCell = row.querySelectorAll('.time-cell')[0];
+                const endTimeCell = row.querySelectorAll('.time-cell')[1];
+                const statusCell = row.querySelector('.status-cell');
+                
+                const startTime24 = getTimeFromDateTime(team.mainShift.dtstart);
+                const endTime24 = getTimeFromDateTime(team.mainShift.dtend);
+                
+                const startSelect = createTimeSelect(startTime24);
+                const endSelect = createTimeSelect(endTime24, startTime24); // Pass minTime
+                const statusSelect = createStatusSelect(team.mainShift.status);
+                
+                // When start time changes, regenerate end time select with new constraint
+                startSelect.addEventListener('change', () => {
+                    const newStartTime = startSelect.value;
+                    const currentEndTime = endSelect.value;
+                    
+                    // Regenerate end select
+                    const newEndSelect = createTimeSelect(currentEndTime, newStartTime);
+                    
+                    // Preserve event listeners
+                    newEndSelect.addEventListener('change', () => checkIfTeamEditedInBulk(teamName));
+                    
+                    // Replace old select
+                    endTimeCell.querySelector('.time-edit').innerHTML = '';
+                    endTimeCell.querySelector('.time-edit').appendChild(newEndSelect);
+                    
+                    checkIfTeamEditedInBulk(teamName);
+                });
+                
+                endSelect.addEventListener('change', () => checkIfTeamEditedInBulk(teamName));
+                statusSelect.addEventListener('change', () => checkIfTeamEditedInBulk(teamName));
+                
+                startTimeCell.querySelector('.time-edit').appendChild(startSelect);
+                endTimeCell.querySelector('.time-edit').appendChild(endSelect);
+                statusCell.querySelector('.status-edit').appendChild(statusSelect);
+                
+                // Hide individual action buttons
+                const actionCell = row.querySelector('.action-buttons');
+                actionCell.style.display = 'none';
+            });
+
+            // Update button display
+            document.getElementById('editAllBtn').style.display = 'none';
+            document.getElementById('updateAllBtn').style.display = 'inline-block';
+            document.getElementById('cancelAllBtn').style.display = 'inline-block';
+        }
+
+        function checkIfTeamEditedInBulk(teamName) {
+            const row = document.querySelector(`tr[data-team-name="${teamName}"]`);
+            const startSelect = row.querySelectorAll('.time-cell')[0].querySelector('select');
+            const endSelect = row.querySelectorAll('.time-cell')[1].querySelector('select');
+            const statusSelect = row.querySelector('.status-cell select');
+            
+            const original = bulkEditOriginalValues[teamName];
+            
+            if (startSelect.value !== original.start || 
+                endSelect.value !== original.end || 
+                statusSelect.value !== original.status) {
+                row.classList.add('edited');
+            } else {
+                row.classList.remove('edited');
+            }
+        }
+
+        function cancelBulkEdit() {
+            bulkEditMode = false;
+
+            // Exit edit mode for all team rows
+            Object.keys(teamsData).forEach(teamName => {
+                const row = document.querySelector(`tr[data-team-name="${teamName}"]`);
+                
+                row.classList.remove('editing', 'bulk-editing', 'edited');
+                
+                const startTimeCell = row.querySelectorAll('.time-cell')[0];
+                const endTimeCell = row.querySelectorAll('.time-cell')[1];
+                const statusCell = row.querySelector('.status-cell');
+                
+                startTimeCell.querySelector('.time-edit').innerHTML = '';
+                endTimeCell.querySelector('.time-edit').innerHTML = '';
+                statusCell.querySelector('.status-edit').innerHTML = '';
+                
+                // Show individual action buttons
+                const actionCell = row.querySelector('.action-buttons');
+                actionCell.style.display = 'flex';
+            });
+
+            // Update button display
+            document.getElementById('editAllBtn').style.display = 'inline-block';
+            document.getElementById('updateAllBtn').style.display = 'none';
+            document.getElementById('cancelAllBtn').style.display = 'none';
+
+            bulkEditOriginalValues = {};
+        }
+
+        async function updateAllTeams() {
+            // Collect only changed teams
+            const changedTeams = [];
+            const shiftsToUpdate = [];
+
+            Object.keys(teamsData).forEach(teamName => {
+                const row = document.querySelector(`tr[data-team-name="${teamName}"]`);
+                
+                if (row.classList.contains('edited')) {
+                    const startSelect = row.querySelectorAll('.time-cell')[0].querySelector('select');
+                    const endSelect = row.querySelectorAll('.time-cell')[1].querySelector('select');
+                    const statusSelect = row.querySelector('.status-cell select');
+                    
+                    changedTeams.push({
+                        teamName,
+                        newStart: startSelect.value,
+                        newEnd: endSelect.value,
+                        newStatus: statusSelect.value
+                    });
+                }
+            });
+
+            if (changedTeams.length === 0) {
+                alert('No changes to save');
+                cancelBulkEdit();
+                return;
+            }
+
+            // Build the bulk update payload
+            changedTeams.forEach(changed => {
+                const team = teamsData[changed.teamName];
+                
+                // Clone main shift
+                const mainShift = { ...team.mainShift };
+                mainShift.openEnd = true;
+                
+                // Clone assist shift
+                const assistShift = { ...team.assistShift };
+                assistShift.openEnd = true;
+                
+                // Update times
+                const timezoneMatch = mainShift.dtstart.match(/([+-]\d{2}:\d{2}|Z)$/);
+                const timezone = timezoneMatch ? timezoneMatch[0] : 'Z';
+                const dateOnly = mainShift.dtstart.split('T')[0];
+
+                // Update times for mainShift
+                mainShift.dtstart = `${dateOnly}T${changed.newStart}:00${timezone}`;
+                mainShift.dtend = `${dateOnly}T${changed.newEnd}:00${timezone}`;
+                mainShift.status = changed.newStatus;
+
+                // Apply same times to assist shift
+                const assistDateOnly = assistShift.dtstart.split('T')[0];
+                assistShift.dtstart = `${assistDateOnly}T${changed.newStart}:00${timezone}`;
+                assistShift.dtend = `${assistDateOnly}T${changed.newEnd}:00${timezone}`;
+                assistShift.status = changed.newStatus;
+                
+                shiftsToUpdate.push(mainShift, assistShift);
+            });
+
+            // Show processing modal
+            showModal('Processing Request', 'loading');
+
+            try {
+                    const bulkApiUrl = `https://api.getsling.com/v1/shifts/bulk`;
+                    const bulkProxyUrl = `https://corsproxy.io/?${encodeURIComponent(bulkApiUrl)}`;
+
+                    const response = await fetch(bulkProxyUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': '*/*',
+                            'Authorization': 'fcf843c7480e43d9a42e0a94f546158d'
+                        },
+                        body: JSON.stringify(shiftsToUpdate)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Bulk update failed: ${response.status} ${response.statusText}`);
+                    }
+
+                    const updatedShifts = await response.json();
+
+                // Update stored data with new values
+                changedTeams.forEach(changed => {
+                    const team = teamsData[changed.teamName];
+                    const row = document.querySelector(`tr[data-team-name="${changed.teamName}"]`);
+                    
+                    // Find updated shifts in response
+                    const updatedMain = updatedShifts.find(s => s.id === team.mainShift.id);
+                    const updatedAssist = updatedShifts.find(s => s.id === team.assistShift.id);
+                    
+                    if (updatedMain) team.mainShift = updatedMain;
+                    if (updatedAssist) team.assistShift = updatedAssist;
+                    
+                    // Update display
+                    row.querySelector('.time-cell:nth-child(4) .time-display').textContent = formatTime(team.mainShift.dtstart);
+                    row.querySelector('.time-cell:nth-child(5) .time-display').textContent = formatTime(team.mainShift.dtend);
+                    
+                    const statusClass = changed.newStatus === 'published' ? 'published' : 'unpublished';
+                    const statusText = changed.newStatus === 'published' ? 'Published' : 'Unpublished';
+                    row.querySelector('.status-cell .status-display').innerHTML = `<span class="status-badge ${statusClass}">${statusText}</span>`;
+                    
+                    // Update dataset for future edits
+                    row.dataset.originalStart = changed.newStart;
+                    row.dataset.originalEnd = changed.newEnd;
+                    row.dataset.originalStatus = changed.newStatus;
+                });
+
+                // Show success modal
+                showModal('Shifts Updated Successfully', 'success');
+                
+                // Close modal and exit bulk edit mode after 1.5 seconds
+                setTimeout(() => {
+                    hideModal();
+                    cancelBulkEdit();
+                }, 1500);
+
+            } catch (error) {
+                console.error('Error updating teams:', error);
+                showModal(`Update Failed: ${error.message}`, 'error');
+                
+                // Close error modal after 3 seconds
+                setTimeout(() => {
+                    hideModal();
+                }, 3000);
+            }
+        }
+
+        function showModal(message, type) {
+            const modal = document.getElementById('modalOverlay');
+            const modalMessage = document.getElementById('modalMessage');
+            const loader = document.getElementById('modalLoader');
+            const successIcon = document.getElementById('modalSuccess');
+            const errorIcon = document.getElementById('modalError');
+            
+            modalMessage.textContent = message;
+            
+            // Reset all icons
+            loader.style.display = 'none';
+            successIcon.style.display = 'none';
+            errorIcon.style.display = 'none';
+            
+            // Show appropriate icon
+            if (type === 'loading') {
+                loader.style.display = 'block';
+            } else if (type === 'success') {
+                successIcon.style.display = 'block';
+            } else if (type === 'error') {
+                errorIcon.style.display = 'block';
+            }
+            
+            modal.classList.add('active');
+        }
+
+        function hideModal() {
+            const modal = document.getElementById('modalOverlay');
+            modal.classList.remove('active');
+        }
+
+        // ========== END BULK EDIT FUNCTIONS ==========
+
+        function formatTime(dateTimeString) {
+            const date = new Date(dateTimeString);
+            let hours = date.getHours();
+            const minutes = date.getMinutes();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12;
+            hours = hours ? hours : 12;
+            const minutesStr = minutes < 10 ? '0' + minutes : minutes;
+            return `${hours}:${minutesStr} ${ampm}`;
+        }
+
+        document.getElementById('dateInput').addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                searchSchedule();
+            }
+        });
+
+        // ========== AUTO-LOAD FROM URL PARAMETER ==========
+        // This allows the page to be opened with a date parameter and automatically search
+        // Example: ?date=11/16/2025 (MM/DD/YYYY format from Caspio)
+        (function autoLoadFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const dateParam = urlParams.get('date');
+            
+            if (dateParam) {
+                console.log('Auto-loading date from URL:', dateParam);
+                
+                try {
+                    // Convert MM/DD/YYYY to YYYY-MM-DD for HTML date input
+                    const dateParts = dateParam.split('/');
+                    
+                    if (dateParts.length === 3) {
+                        const month = dateParts[0].padStart(2, '0');
+                        const day = dateParts[1].padStart(2, '0');
+                        const year = dateParts[2];
+                        const isoDate = `${year}-${month}-${day}`;
+                        
+                        // Set the date input
+                        document.getElementById('dateInput').value = isoDate;
+                        
+                        // Auto-search after brief delay to ensure DOM is ready
+                        setTimeout(() => {
+                            console.log('Auto-triggering search for:', isoDate);
+                            searchSchedule();
+                        }, 100);
+                    } else {
+                        console.warn('Invalid date format in URL parameter:', dateParam);
+                    }
+                } catch (error) {
+                    console.error('Error parsing date from URL:', error);
+                    // Fail silently - page still works normally
+                }
+            }
+        })();
+        // ========== END AUTO-LOAD ==========
+    </script>
+</body>
+</html>
