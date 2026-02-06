@@ -61,7 +61,8 @@ if ! gcloud iam workload-identity-pools providers describe "$PROVIDER_ID" \
     --workload-identity-pool="$POOL_ID" \
     --display-name="GitHub OIDC Provider" \
     --issuer-uri="https://token.actions.githubusercontent.com" \
-    --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.ref=assertion.ref,attribute.actor=assertion.actor"
+    --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.ref=assertion.ref,attribute.actor=assertion.actor" \
+    --attribute-condition="assertion.repository=='${REPO}'"
 fi
 
 # Allow this repo to impersonate the service account.
