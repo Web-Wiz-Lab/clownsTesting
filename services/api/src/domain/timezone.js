@@ -44,6 +44,9 @@ export function buildDateTime(dateIso, time24, offset) {
 
 export function formatTimeForDisplay(isoDateTime, timezone = 'America/New_York') {
   const date = new Date(isoDateTime);
+  if (!Number.isFinite(date.getTime())) {
+    return '';
+  }
   return new Intl.DateTimeFormat('en-US', {
     timeZone: timezone,
     hour: 'numeric',

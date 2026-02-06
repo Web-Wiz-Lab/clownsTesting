@@ -15,8 +15,20 @@ import {
 const ALLOWED_STATUS = new Set(['published', 'planning']);
 
 function validateOccurrenceId(occurrenceId) {
-  if (!occurrenceId || !occurrenceId.includes(':')) {
-    throw new ApiError('Occurrence ID must include a series and date suffix (example: 12345:2026-02-07)', {
+  if (!occurrenceId || typeof occurrenceId !== 'string') {
+    throw new ApiError('occurrenceId is required', {
+      statusCode: 400,
+      code: 'INVALID_OCCURRENCE_ID'
+    });
+  }
+
+  if (!occurrenceId.includes(':')) {
+    return;
+  }
+
+  const parts = occurrenceId.split(':');
+  if (parts.length !== 2 || !/^\d{4}-\d{2}-\d{2}$/.test(parts[1])) {
+    throw new ApiError('Occurrence ID format is invalid (expected seriesId:YYYY-MM-DD)', {
       statusCode: 400,
       code: 'INVALID_OCCURRENCE_ID'
     });
@@ -79,11 +91,32 @@ function toFailure(occurrenceId, error, index = null) {
   };
 }
 
+function unwrapSlingShiftResponse(payload) {
+  if (!payload) return null;
+  if (Array.isArray(payload)) {
+    return payload[0] || null;
+  }
+  if (Array.isArray(payload?.data)) {
+    return payload.data[0] || null;
+  }
+  return payload;
+}
+
 export async function updateSingleOccurrence({ occurrenceId, payload, slingClient, env, requestId }) {
   validateOccurrenceId(occurrenceId);
   validateUpdateInput(payload);
 
   const current = await slingClient.getShiftById(occurrenceId, requestId);
+  if (!occurrenceId.includes(':') && current?.rrule) {
+    throw new ApiError(
+      'Recurring shift update requires an occurrence ID with date suffix (seriesId:YYYY-MM-DD)',
+      {
+        statusCode: 400,
+        code: 'RECURRING_REQUIRES_OCCURRENCE_ID'
+      }
+    );
+  }
+
   const date = extractDateFromIsoDateTime(current.dtstart);
   const offset = resolveOffset(current);
 
@@ -100,15 +133,20 @@ export async function updateSingleOccurrence({ occurrenceId, payload, slingClien
     outbound.status = payload.status;
   }
 
-  const updated = await slingClient.updateShift(occurrenceId, outbound, requestId);
+  const updatedRaw = await slingClient.updateShift(occurrenceId, outbound, requestId);
+  const updated = unwrapSlingShiftResponse(updatedRaw) || outbound;
+  const normalizedShift = {
+    ...outbound,
+    ...updated
+  };
 
   return {
     requestId,
     summary: 'ok',
     timezone: env.timezone,
     data: {
-      occurrenceId,
-      updatedShift: normalizeShiftForUi(updated, env.timezone)
+      occurrenceId: normalizedShift.id || occurrenceId,
+      updatedShift: normalizeShiftForUi(normalizedShift, env.timezone)
     }
   };
 }
