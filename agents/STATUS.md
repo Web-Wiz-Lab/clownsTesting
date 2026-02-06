@@ -1,7 +1,7 @@
 # Agent Execution Status
 
 ## 00 Orchestrator Agent
-- Status: completed (iteration 4)
+- Status: completed (iteration 5)
 - Scope: sequencing and quality gates across architecture, backend, frontend, QA, and DevOps.
 - Current gate: baseline QA passed, ready for deployment prep.
 
@@ -52,4 +52,8 @@
   - `.github/workflows/deploy-ui-netlify.yml`
   - `netlify.toml`
   - `docs/CI_CD.md`
+  - `docs/GCP_SETUP.md`
+  - `docs/NETLIFY_SETUP.md`
+  - `infra/cloudrun/setup-github-wif.sh`
+  - `infra/cloudrun/set-runtime-config.sh`
 - Next: deploy once GitHub secrets for GCP and Netlify are configured.

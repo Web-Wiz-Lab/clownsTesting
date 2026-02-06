@@ -4,7 +4,7 @@
 <script>
 document.getElementById('manageSling').addEventListener('click', function() {
   const date = '[@cdate]'; // MM/DD/YYYY from Caspio field token
-  const schedulerUrl = 'https://<your-netlify-site>.netlify.app';
+  const schedulerUrl = 'https://sling-scheduler.netlify.app';
   window.open(`${schedulerUrl}?date=${encodeURIComponent(date)}`, '_blank');
 });
 </script>

@@ -17,7 +17,7 @@ This keeps Caspio simple while allowing future migration to React/shadcn/ui with
 Set `CORS_ALLOWED_ORIGINS` to UI origins only.
 
 Use this initially:
-- `https://<your-netlify-site>.netlify.app`
+- `https://sling-scheduler.netlify.app`
 
 Add Caspio origin only if Caspio pages call API directly:
 - `https://c0ebl152.caspio.com`

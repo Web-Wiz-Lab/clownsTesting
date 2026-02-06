@@ -30,7 +30,7 @@ Use Cloud Run `Variables & Secrets`:
 - `SLING_MANAGER_USER_ID=21341367`
 - `CASPIO_BASE_URL=https://c0ebl152.caspio.com/rest/v2`
 - `CASPIO_TOKEN_WEBHOOK_URL=<make-token-webhook>`
-- `CORS_ALLOWED_ORIGINS=<netlify_origin>` (add Caspio origin only if needed)
+- `CORS_ALLOWED_ORIGINS=https://sling-scheduler.netlify.app` (add Caspio origin only if needed)
 - `REQUEST_TIMEOUT_MS=12000`
 - `RETRY_ATTEMPTS=2`
 

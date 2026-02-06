@@ -10,6 +10,9 @@
 - Netlify site config (`netlify.toml`).
 - Caspio launcher integration snippet.
 - CI/CD prerequisites documentation.
+- One-time GCP WIF setup script for GitHub Actions.
+- Cloud Run runtime env/secret configuration script.
+- Detailed operator guides for GCP and Netlify setup.
 
 ## What was validated
 - Deployment script is executable.
@@ -31,5 +34,9 @@
 - `.github/workflows/deploy-ui-netlify.yml`
 - `netlify.toml`
 - `docs/CI_CD.md`
+- `docs/GCP_SETUP.md`
+- `docs/NETLIFY_SETUP.md`
 - `docs/HOSTING_STRATEGY.md`
 - `integrations/caspio/manage-in-sling-launcher.html`
+- `infra/cloudrun/setup-github-wif.sh`
+- `infra/cloudrun/set-runtime-config.sh`

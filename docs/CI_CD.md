@@ -16,6 +16,10 @@ Set these in repo settings before deploy workflow can run:
 - `NETLIFY_SITE_ID`
 - `SCHEDULER_API_BASE_URL` (Cloud Run base URL used by UI runtime config)
 
+For this repo, detailed setup is documented in:
+- `docs/GCP_SETUP.md`
+- `docs/NETLIFY_SETUP.md`
+
 ## GCP Service Account Permissions
 Grant the deploy service account at least:
 - `roles/run.admin`
@@ -31,4 +35,4 @@ Cloud Run environment variables and secrets still need to be configured in servi
 - `CASPIO_BASE_URL`
 - `CASPIO_TOKEN_WEBHOOK_URL` or `CASPIO_ACCESS_TOKEN`
 - `APP_TIMEZONE=America/New_York`
-- `CORS_ALLOWED_ORIGINS=<netlify_origin>` (plus Caspio origin only if Caspio calls API directly)
+- `CORS_ALLOWED_ORIGINS=https://sling-scheduler.netlify.app` (plus Caspio origin only if Caspio calls API directly)
