@@ -16,6 +16,45 @@ async function parseResponseBody(response) {
   return response.text();
 }
 
+function tryParseJson(value) {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (!trimmed) return value;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
+  }
+}
+
+function extractTokenPayload(rawData) {
+  const data = tryParseJson(rawData);
+
+  const candidates = [
+    data,
+    data?.data,
+    data?.result,
+    data?.Result,
+    Array.isArray(data) ? data[0] : null,
+    data?.body,
+    data?.payload
+  ]
+    .map(tryParseJson)
+    .filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (candidate?.access_token) {
+      const expires = Number(candidate.expires_in ?? 3600);
+      return {
+        accessToken: candidate.access_token,
+        expiresIn: Number.isFinite(expires) && expires > 0 ? expires : 3600
+      };
+    }
+  }
+
+  return null;
+}
+
 export function createCaspioClient(env) {
   const tokenState = {
     token: env.caspioAccessToken || null,
@@ -40,7 +79,8 @@ export function createCaspioClient(env) {
     }
 
     const data = await parseResponseBody(response);
-    if (!data?.access_token || !data?.expires_in) {
+    const token = extractTokenPayload(data);
+    if (!token) {
       throw new ApiError('Invalid Caspio token response', {
         statusCode: 502,
         code: 'CASPIO_AUTH_BAD_RESPONSE',
@@ -48,8 +88,8 @@ export function createCaspioClient(env) {
       });
     }
 
-    tokenState.token = data.access_token;
-    tokenState.expiresAt = Date.now() + Number(data.expires_in) * 1000;
+    tokenState.token = token.accessToken;
+    tokenState.expiresAt = Date.now() + token.expiresIn * 1000;
     return tokenState.token;
   }
 
