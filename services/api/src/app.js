@@ -172,8 +172,7 @@ export function createRequestHandler({ env, slingClient, caspioClient, errorRepo
             requestId,
             summary: 'ok',
             data: {
-              delivered: true,
-              confirmation: delivered?.confirmation || null,
+              triggered: delivered?.triggered === true,
               webhookStatus: delivered?.webhookStatus || null
             }
           },

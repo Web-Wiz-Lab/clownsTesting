@@ -402,24 +402,21 @@ async function reportErrorToOps({ action, userMessage, error = null, context = {
 
         const result = await apiRequest(ERROR_REPORT_PATH, 'POST', payload);
         return {
-            delivered: result?.data?.delivered === true,
-            confirmation: result?.data?.confirmation || null,
+            triggered: result?.data?.triggered === true,
             requestId: result?.requestId || null
         };
     } catch {
-        return { delivered: false };
+        return { triggered: false };
     }
 }
 
-async function showErrorAndReport({ message, action, error = null, context = {} }) {
+function showErrorAndReport({ message, action, error = null, context = {} }) {
     showError(message);
-    const report = await reportErrorToOps({ action, userMessage: message, error, context });
-    if (report.delivered) {
-        const confirmationText = report.confirmation
-            ? `Andrew was notified via Slack (${report.confirmation}).`
-            : 'Andrew was notified via Slack.';
-        appendErrorMessage(confirmationText);
-    }
+    reportErrorToOps({ action, userMessage: message, error, context }).then((report) => {
+        if (report.triggered) {
+            appendErrorMessage('Andrew was notified via Slack.');
+        }
+    });
 }
 
 function formatTime24To12(time24) {
@@ -765,7 +762,7 @@ async function searchSchedule() {
         }
     } catch (error) {
         const userMessage = explainApiError(error, 'Could not load the schedule for this date.');
-        await showErrorAndReport({
+        showErrorAndReport({
             message: userMessage,
             action: 'load_schedule',
             error,
@@ -871,7 +868,7 @@ async function updateTeam(teamName) {
     if (!startSelect || !endSelect || !statusSelect) {
         const message =
             'This row could not enter edit mode correctly. Refresh and try again. If this keeps happening, contact Dev (Andrew).';
-        await showErrorAndReport({
+        showErrorAndReport({
             message,
             action: 'update_team_ui_state_invalid',
             context: { teamName }
@@ -935,7 +932,7 @@ async function updateTeam(teamName) {
 
     if (responseError) {
         const userMessage = explainApiError(responseError, 'Could not update this team.');
-        await showErrorAndReport({
+        showErrorAndReport({
             message: userMessage,
             action: 'update_team_request_failed',
             error: responseError,
@@ -951,7 +948,7 @@ async function updateTeam(teamName) {
     }
 
     const groupFailureMessage = summarizeGroupedFailure(response, 'Team update failed');
-    await showErrorAndReport({
+    showErrorAndReport({
         message: groupFailureMessage,
         action: 'update_team_atomic_failed',
         error: { payload: response, status: 200, message: 'Atomic team update failed' },
@@ -1143,7 +1140,7 @@ async function updateAllTeams() {
                 cancelBulkEdit();
             }, 2500);
             const failureMessage = summarizeGroupedFailure(result, 'Bulk update completed with failures');
-            await showErrorAndReport({
+            showErrorAndReport({
                 message: failureMessage,
                 action: 'update_all_teams_partial_failure',
                 error: { payload: result, status: 200, message: 'Bulk grouped update failed' },
@@ -1156,7 +1153,7 @@ async function updateAllTeams() {
             hideModal();
         }, 3000);
         const userMessage = explainApiError(error, 'Could not update teams right now.');
-        await showErrorAndReport({
+        showErrorAndReport({
             message: userMessage,
             action: 'update_all_teams_request_failed',
             error,
@@ -1257,7 +1254,7 @@ async function updateUnmatchedShift(index) {
     if (!startSelect || !endSelect || !statusSelect) {
         const message =
             'This row could not enter edit mode correctly. Refresh and try again. If this keeps happening, contact Dev (Andrew).';
-        await showErrorAndReport({
+        showErrorAndReport({
             message,
             action: 'update_unmatched_ui_state_invalid',
             context: { unmatchedIndex: index }
@@ -1329,7 +1326,7 @@ async function updateUnmatchedShift(index) {
         showSuccess(`Shift updated successfully!${result.requestId ? ` requestId: ${result.requestId}` : ''}`);
     } catch (error) {
         const userMessage = explainApiError(error, 'Could not update this shift.');
-        await showErrorAndReport({
+        showErrorAndReport({
             message: userMessage,
             action: 'update_unmatched_shift_failed',
             error,

@@ -1,37 +1,5 @@
 import { ApiError } from '../middleware/errors.js';
 
-async function parseResponseBody(response) {
-  const contentType = response.headers.get('content-type') || '';
-  if (contentType.includes('application/json')) {
-    return response.json();
-  }
-
-  const text = await response.text();
-  if (!text) return null;
-  return text;
-}
-
-function inferConfirmation(payload, status) {
-  if (!payload) {
-    return `Webhook responded with status ${status}`;
-  }
-  if (typeof payload === 'string') {
-    return payload.trim() || `Webhook responded with status ${status}`;
-  }
-  if (typeof payload === 'object') {
-    const textCandidate =
-      payload.confirmation ||
-      payload.message ||
-      payload.statusText ||
-      payload.status ||
-      payload.result;
-    if (typeof textCandidate === 'string' && textCandidate.trim()) {
-      return textCandidate.trim();
-    }
-  }
-  return `Webhook responded with status ${status}`;
-}
-
 export function createErrorReporterClient(env) {
   async function sendErrorReport(report, requestId) {
     if (!env.errorReportWebhookUrl) {
@@ -54,23 +22,20 @@ export function createErrorReporterClient(env) {
         signal: controller.signal
       });
 
-      const payload = await parseResponseBody(response);
       if (!response.ok) {
         throw new ApiError('Error report webhook call failed', {
           statusCode: 502,
           code: 'ERROR_REPORT_WEBHOOK_FAILED',
           details: {
             requestId,
-            webhookStatus: response.status,
-            payload
+            webhookStatus: response.status
           }
         });
       }
 
       return {
-        webhookStatus: response.status,
-        payload,
-        confirmation: inferConfirmation(payload, response.status)
+        triggered: true,
+        webhookStatus: response.status
       };
     } catch (error) {
       if (error instanceof ApiError) {

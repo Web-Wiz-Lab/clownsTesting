@@ -71,7 +71,7 @@ function buildClients(overrides = {}) {
       async sendErrorReport() {
         calls.errorReports += 1;
         return {
-          confirmation: 'Queued in Zapier',
+          triggered: true,
           webhookStatus: 200
         };
       },
@@ -293,14 +293,14 @@ test('Grouped atomic failure returns 200 with failure summary for client-side re
   assert.equal(result.json.results[0].rolledBack, true);
 });
 
-test('POST /api/error-report forwards payload and returns delivery confirmation', async () => {
+test('POST /api/error-report forwards payload and returns trigger acknowledgment', async () => {
   const { slingClient, caspioClient, errorReporterClient, calls } = buildClients();
   const captured = [];
   errorReporterClient.sendErrorReport = async (payload) => {
     calls.errorReports += 1;
     captured.push(payload);
     return {
-      confirmation: 'Slack message sent',
+      triggered: true,
       webhookStatus: 200
     };
   };
@@ -325,8 +325,7 @@ test('POST /api/error-report forwards payload and returns delivery confirmation'
 
   assert.equal(result.statusCode, 200);
   assert.equal(result.json.summary, 'ok');
-  assert.equal(result.json.data.delivered, true);
-  assert.equal(result.json.data.confirmation, 'Slack message sent');
+  assert.equal(result.json.data.triggered, true);
   assert.equal(calls.errorReports, 1);
   assert.equal(captured.length, 1);
   assert.equal(captured[0].source, 'sling-scheduler-ui');
