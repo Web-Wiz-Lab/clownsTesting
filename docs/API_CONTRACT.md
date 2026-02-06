@@ -52,7 +52,58 @@ Response:
 ```
 
 ## `POST /api/shifts/bulk`
-Request:
+Preferred request (grouped atomic mode):
+```json
+{
+  "groups": [
+    {
+      "groupId": "Team 1",
+      "atomic": true,
+      "updates": [
+        {
+          "occurrenceId": "4738748479",
+          "startTime": "13:00",
+          "endTime": "16:00",
+          "status": "published"
+        },
+        {
+          "occurrenceId": "4738738907:2026-08-10",
+          "startTime": "13:00",
+          "endTime": "16:00",
+          "status": "published"
+        }
+      ]
+    }
+  ]
+}
+```
+
+Grouped response:
+```json
+{
+  "requestId": "...",
+  "mode": "grouped",
+  "summary": "partial_success",
+  "timezone": "America/New_York",
+  "counts": { "total": 2, "success": 1, "failed": 1 },
+  "results": [
+    {
+      "index": 0,
+      "groupId": "Team 1",
+      "status": "failed",
+      "atomic": true,
+      "rolledBack": true,
+      "counts": { "total": 2, "success": 0, "failed": 2 },
+      "failure": {
+        "code": "SLING_REQUEST_FAILED",
+        "message": "Sling request failed"
+      }
+    }
+  ]
+}
+```
+
+Legacy flat request (still supported):
 ```json
 {
   "updates": [
@@ -65,10 +116,12 @@ Request:
   ]
 }
 ```
-Response:
+
+Flat response:
 ```json
 {
   "requestId": "...",
+  "mode": "flat",
   "summary": "partial_success",
   "timezone": "America/New_York",
   "counts": { "total": 1, "success": 0, "failed": 1 },
@@ -85,6 +138,47 @@ Response:
       }
     }
   ]
+}
+```
+
+## `POST /api/error-report`
+Purpose:
+- Receives UI-side error reports for operational alerting.
+- Forwards to webhook defined by `ERROR_REPORT_WEBHOOK_URL`.
+
+Request:
+```json
+{
+  "action": "update_team_request_failed",
+  "userMessage": "Could not update this team.",
+  "occurredAt": "2026-02-06T22:23:19.000Z",
+  "error": {
+    "code": "SLING_REQUEST_FAILED",
+    "message": "Sling request failed",
+    "requestId": "manual-test-1770416599",
+    "status": 409,
+    "details": {}
+  },
+  "context": {
+    "selectedDate": "2026-02-08",
+    "teamName": "Team 1"
+  },
+  "client": {
+    "url": "https://sling-scheduler.netlify.app",
+    "timezone": "America/New_York"
+  }
+}
+```
+
+Response:
+```json
+{
+  "requestId": "...",
+  "summary": "ok",
+  "data": {
+    "triggered": true,
+    "webhookStatus": 200
+  }
 }
 ```
 

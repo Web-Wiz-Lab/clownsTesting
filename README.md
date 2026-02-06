@@ -16,7 +16,8 @@ This file is the single source of truth for setup, deployment, debugging, and fu
 - Canonical timezone: `America/New_York`
 - Required behavior:
   - Single occurrence updates only.
-  - Bulk updates with partial success.
+  - Team updates are atomic (2 staff in a team update together or rollback together).
+  - Edit All allows partial success across teams (one failed team does not block others).
 
 ## Why This Architecture Exists
 
@@ -58,6 +59,7 @@ The rebuilt architecture solves this by:
 - `GET /api/schedule?date=YYYY-MM-DD`
 - `PUT /api/shifts/:occurrenceId`
 - `POST /api/shifts/bulk`
+- `POST /api/error-report`
 
 Detailed contract: `docs/API_CONTRACT.md`
 
@@ -91,6 +93,7 @@ Required runtime vars:
 - `SLING_MANAGER_USER_ID=21341367`
 - `CASPIO_BASE_URL=https://c0ebl152.caspio.com/rest/v2`
 - `CASPIO_TOKEN_WEBHOOK_URL=<make webhook that returns Caspio token>`
+- `ERROR_REPORT_WEBHOOK_URL=<zapier catch webhook for Slack alerting>`
 - `CORS_ALLOWED_ORIGINS=https://sling-scheduler.netlify.app`
 - `REQUEST_TIMEOUT_MS=12000`
 - `RETRY_ATTEMPTS=2`
@@ -200,8 +203,20 @@ gcloud run services logs read sling-scheduling \
   - Use manual Cloud Run web deploy.
 
 5. Sling conflict errors in bulk updates
-- Expected behavior: partial success; each failed item contains per-item error details.
+- Expected behavior:
+  - One team update is atomic (rollback on failure within team).
+  - Edit All can return partial success across teams.
 - Action: inspect `results[]` in bulk response and confirm conflict windows.
+
+6. Error reporting not firing to Slack/Zapier
+- Symptom: UI shows error but no Slack alert.
+- Causes:
+  - `ERROR_REPORT_WEBHOOK_URL` missing in Cloud Run env.
+  - API revision without `POST /api/error-report`.
+- Action:
+  - Confirm env var exists in Cloud Run service.
+  - Check `POST /api/error-report` returns `summary: ok`.
+  - Verify Zapier Zap is enabled and webhook URL is current.
 
 ## Recurrence Rules and Single-Occurrence Policy
 
@@ -242,10 +257,27 @@ Before making changes:
 
 - `docs/ARCHITECTURE.md`
 - `docs/API_CONTRACT.md`
+- `docs/CHANGELOG.md`
 - `docs/CI_CD.md`
 - `docs/GCP_SETUP.md`
 - `docs/NETLIFY_SETUP.md`
 - `docs/HOSTING_STRATEGY.md`
+
+## Session Handoff (2026-02-06)
+
+Completed:
+1. Reworked update safety model to grouped atomic team updates with rollback via `POST /api/shifts/bulk`.
+2. Enforced recurrence safety so recurring updates require occurrence IDs (`seriesId:YYYY-MM-DD`).
+3. Improved frontend errors with plain-language messages and clear escalation guidance.
+4. Added automatic UI error reporting flow:
+   UI -> `POST /api/error-report` -> Zapier webhook (`ERROR_REPORT_WEBHOOK_URL`) -> Slack.
+5. Switched webhook behavior to trigger-only (no dependency on custom webhook response body).
+6. Finalized Caspio launcher target to `https://sling-scheduler.netlify.app?date=MM/DD/YYYY` (see `integrations/caspio/manage-in-sling-launcher.html`).
+
+Where work stopped / next quick verification after any deploy:
+1. Trigger one controlled UI/API error.
+2. Confirm UI message is user-friendly and includes `Andrew was notified via Slack.`
+3. Confirm Zapier receives payload from `/api/error-report`.
 
 ## Notes for AI Assistants (Codex/Claude)
 
