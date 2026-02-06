@@ -32,6 +32,7 @@ export function loadEnv() {
     caspioBaseUrl: process.env.CASPIO_BASE_URL || '',
     caspioTokenWebhookUrl: process.env.CASPIO_TOKEN_WEBHOOK_URL || '',
     caspioAccessToken: process.env.CASPIO_ACCESS_TOKEN || '',
+    errorReportWebhookUrl: process.env.ERROR_REPORT_WEBHOOK_URL || '',
     corsAllowedOrigins: splitCsv(process.env.CORS_ALLOWED_ORIGINS),
     requestTimeoutMs: intFromEnv('REQUEST_TIMEOUT_MS', 12000),
     retryAttempts: intFromEnv('RETRY_ATTEMPTS', 2)

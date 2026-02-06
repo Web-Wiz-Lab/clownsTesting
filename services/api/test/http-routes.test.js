@@ -16,7 +16,8 @@ function buildEnv(overrides = {}) {
 function buildClients(overrides = {}) {
   const calls = {
     getShiftById: 0,
-    updateShift: 0
+    updateShift: 0,
+    errorReports: 0
   };
 
   const defaultShift = {
@@ -65,6 +66,16 @@ function buildClients(overrides = {}) {
         return [];
       },
       ...overrides.caspioClient
+    },
+    errorReporterClient: {
+      async sendErrorReport() {
+        calls.errorReports += 1;
+        return {
+          confirmation: 'Queued in Zapier',
+          webhookStatus: 200
+        };
+      },
+      ...overrides.errorReporterClient
     }
   };
 }
@@ -111,11 +122,12 @@ async function runHandler(handler, { method, url, headers = {}, body = null }) {
 }
 
 test('GET /healthz returns ok response with request id', async () => {
-  const { slingClient, caspioClient } = buildClients();
+  const { slingClient, caspioClient, errorReporterClient } = buildClients();
   const handler = createRequestHandler({
     env: buildEnv(),
     slingClient,
-    caspioClient
+    caspioClient,
+    errorReporterClient
   });
 
   const result = await runHandler(handler, {
@@ -131,11 +143,12 @@ test('GET /healthz returns ok response with request id', async () => {
 });
 
 test('POST /api/shifts/bulk respects idempotency key', async () => {
-  const { slingClient, caspioClient, calls } = buildClients();
+  const { slingClient, caspioClient, errorReporterClient, calls } = buildClients();
   const handler = createRequestHandler({
     env: buildEnv(),
     slingClient,
-    caspioClient
+    caspioClient,
+    errorReporterClient
   });
 
   const payload = {
@@ -178,14 +191,15 @@ test('POST /api/shifts/bulk respects idempotency key', async () => {
 });
 
 test('Disallowed origin is rejected in production mode', async () => {
-  const { slingClient, caspioClient } = buildClients();
+  const { slingClient, caspioClient, errorReporterClient } = buildClients();
   const handler = createRequestHandler({
     env: buildEnv({
       nodeEnv: 'production',
       corsAllowedOrigins: ['https://allowed.example']
     }),
     slingClient,
-    caspioClient
+    caspioClient,
+    errorReporterClient
   });
 
   const result = await runHandler(handler, {
@@ -199,4 +213,123 @@ test('Disallowed origin is rejected in production mode', async () => {
 
   assert.equal(result.statusCode, 403);
   assert.equal(result.json.error.code, 'ORIGIN_NOT_ALLOWED');
+});
+
+test('Grouped atomic failure returns 200 with failure summary for client-side reconciliation', async () => {
+  const shifts = {
+    A: {
+      id: 'A',
+      type: 'shift',
+      status: 'published',
+      dtstart: '2026-08-10T09:15:00-04:00',
+      dtend: '2026-08-10T17:00:00-04:00',
+      user: { id: 1 },
+      location: { id: 151378 },
+      position: { id: 151397 }
+    },
+    'B:2026-08-10': {
+      id: 'B:2026-08-10',
+      type: 'shift',
+      status: 'published',
+      dtstart: '2026-08-10T09:15:00-04:00',
+      dtend: '2026-08-10T17:00:00-04:00',
+      user: { id: 2 },
+      location: { id: 151378 },
+      position: { id: 151397 },
+      rrule: { freq: 'WEEKLY' }
+    }
+  };
+
+  const { caspioClient, errorReporterClient } = buildClients();
+  const slingClient = {
+    async getCalendarShifts() {
+      return [];
+    },
+    async getUsersByIds() {
+      return [];
+    },
+    async getShiftById(occurrenceId) {
+      return { ...shifts[occurrenceId] };
+    },
+    async updateShift(occurrenceId, payload) {
+      if (occurrenceId === 'B:2026-08-10' && payload.dtstart.includes('13:00')) {
+        const error = new Error('Blocked');
+        error.statusCode = 409;
+        error.code = 'SLING_REQUEST_FAILED';
+        throw error;
+      }
+      shifts[occurrenceId] = { ...payload };
+      return payload;
+    }
+  };
+
+  const handler = createRequestHandler({
+    env: buildEnv(),
+    slingClient,
+    caspioClient,
+    errorReporterClient
+  });
+
+  const result = await runHandler(handler, {
+    method: 'POST',
+    url: '/api/shifts/bulk',
+    body: {
+      groups: [
+        {
+          groupId: 'Team 1',
+          atomic: true,
+          updates: [
+            { occurrenceId: 'A', startTime: '13:00', endTime: '16:00', status: 'published' },
+            { occurrenceId: 'B:2026-08-10', startTime: '13:00', endTime: '16:00', status: 'published' }
+          ]
+        }
+      ]
+    }
+  });
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.json.mode, 'grouped');
+  assert.equal(result.json.summary, 'failed');
+  assert.equal(result.json.results[0].rolledBack, true);
+});
+
+test('POST /api/error-report forwards payload and returns delivery confirmation', async () => {
+  const { slingClient, caspioClient, errorReporterClient, calls } = buildClients();
+  const captured = [];
+  errorReporterClient.sendErrorReport = async (payload) => {
+    calls.errorReports += 1;
+    captured.push(payload);
+    return {
+      confirmation: 'Slack message sent',
+      webhookStatus: 200
+    };
+  };
+
+  const handler = createRequestHandler({
+    env: buildEnv(),
+    slingClient,
+    caspioClient,
+    errorReporterClient
+  });
+
+  const result = await runHandler(handler, {
+    method: 'POST',
+    url: '/api/error-report',
+    body: {
+      action: 'update_team',
+      userMessage: 'Could not update this team.',
+      error: { code: 'SLING_REQUEST_FAILED' },
+      context: { teamName: 'Team 1' }
+    }
+  });
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.json.summary, 'ok');
+  assert.equal(result.json.data.delivered, true);
+  assert.equal(result.json.data.confirmation, 'Slack message sent');
+  assert.equal(calls.errorReports, 1);
+  assert.equal(captured.length, 1);
+  assert.equal(captured[0].source, 'sling-scheduler-ui');
+  assert.equal(captured[0].server.service, 'sling-scheduler-api');
+  assert.equal(captured[0].event.action, 'update_team');
 });

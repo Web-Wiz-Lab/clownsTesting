@@ -38,7 +38,7 @@ function corsHeaders(originState, requestId) {
   };
 }
 
-export function createRequestHandler({ env, slingClient, caspioClient }) {
+export function createRequestHandler({ env, slingClient, caspioClient, errorReporterClient = null }) {
   return async function routeRequest(req, res) {
     const { requestId } = buildRequestContext(req);
     const origin = req.headers.origin || '';
@@ -126,19 +126,59 @@ export function createRequestHandler({ env, slingClient, caspioClient }) {
         }
 
         const body = (await readRequestBodySafely(req, requestId)) || {};
-        const updates = Array.isArray(body) ? body : body.updates;
         const payload = await updateBulkOccurrences({
-          updates,
+          payload: body,
           slingClient,
           env,
           requestId
         });
 
-        const statusCode = payload.summary === 'failed' ? 409 : 200;
+        const statusCode = payload.summary === 'failed' && payload.mode === 'flat' ? 409 : 200;
         if (typeof idempotencyKey === 'string') {
           storeIdempotentResult(idempotencyKey, { statusCode, payload });
         }
         sendJson(res, statusCode, payload, baseHeaders);
+        return;
+      }
+
+      if (req.method === 'POST' && path === '/api/error-report') {
+        const body = (await readRequestBodySafely(req, requestId)) || {};
+        if (!errorReporterClient?.sendErrorReport) {
+          throw new ApiError('Error reporting is not configured', {
+            statusCode: 503,
+            code: 'ERROR_REPORTING_DISABLED'
+          });
+        }
+
+        const report = {
+          source: 'sling-scheduler-ui',
+          reportRequestId: requestId,
+          receivedAt: new Date().toISOString(),
+          server: {
+            service: 'sling-scheduler-api',
+            method: req.method,
+            path,
+            origin: req.headers.origin || null,
+            userAgent: req.headers['user-agent'] || null
+          },
+          event: body
+        };
+
+        const delivered = await errorReporterClient.sendErrorReport(report, requestId);
+        sendJson(
+          res,
+          200,
+          {
+            requestId,
+            summary: 'ok',
+            data: {
+              delivered: true,
+              confirmation: delivered?.confirmation || null,
+              webhookStatus: delivered?.webhookStatus || null
+            }
+          },
+          baseHeaders
+        );
         return;
       }
 

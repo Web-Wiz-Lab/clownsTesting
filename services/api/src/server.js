@@ -3,13 +3,15 @@ import http from 'node:http';
 import { loadEnv } from './config/env.js';
 import { createSlingClient } from './clients/sling.js';
 import { createCaspioClient } from './clients/caspio.js';
+import { createErrorReporterClient } from './clients/error-reporter.js';
 import { createRequestHandler } from './app.js';
 
 const env = loadEnv();
 const slingClient = createSlingClient(env);
 const caspioClient = createCaspioClient(env);
+const errorReporterClient = createErrorReporterClient(env);
 
-const handler = createRequestHandler({ env, slingClient, caspioClient });
+const handler = createRequestHandler({ env, slingClient, caspioClient, errorReporterClient });
 const server = http.createServer((req, res) => {
   handler(req, res);
 });

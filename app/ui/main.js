@@ -4,6 +4,8 @@ let bulkEditMode = false;
 let bulkEditOriginalValues = {};
 
 const API_BASE = window.__SCHEDULER_API_BASE__ || '';
+const ERROR_REPORT_PATH = '/api/error-report';
+const reportedErrorFingerprints = new Set();
 
 function buildRequestId() {
     if (window.crypto && window.crypto.randomUUID) {
@@ -14,14 +16,28 @@ function buildRequestId() {
 
 async function apiRequest(path, method = 'GET', body = null) {
     const requestId = buildRequestId();
-    const response = await fetch(`${API_BASE}${path}`, {
-        method,
-        headers: {
-            'Content-Type': 'application/json',
-            'X-Request-Id': requestId
-        },
-        body: body ? JSON.stringify(body) : undefined
-    });
+    let response;
+    try {
+        response = await fetch(`${API_BASE}${path}`, {
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Request-Id': requestId
+            },
+            body: body ? JSON.stringify(body) : undefined
+        });
+    } catch (cause) {
+        const err = new Error('Network request failed');
+        err.payload = {
+            error: {
+                code: 'NETWORK_REQUEST_FAILED',
+                message: 'Network request failed'
+            }
+        };
+        err.status = 0;
+        err.cause = cause;
+        throw err;
+    }
 
     let payload = {};
     try {
@@ -33,6 +49,7 @@ async function apiRequest(path, method = 'GET', body = null) {
     if (!response.ok) {
         const err = new Error(payload?.error?.message || `HTTP ${response.status}`);
         err.payload = payload;
+        err.status = response.status;
         throw err;
     }
 
@@ -45,6 +62,17 @@ function showError(message) {
     successMessage.classList.remove('active');
     errorMessage.textContent = message;
     errorMessage.classList.add('active');
+}
+
+function appendErrorMessage(additionalText) {
+    const errorMessage = document.getElementById('errorMessage');
+    if (!errorMessage.classList.contains('active')) {
+        return;
+    }
+    if (errorMessage.textContent.includes(additionalText)) {
+        return;
+    }
+    errorMessage.textContent = `${errorMessage.textContent} ${additionalText}`.trim();
 }
 
 function showSuccess(message, timeoutMs = 3000) {
@@ -61,6 +89,337 @@ function showSuccess(message, timeoutMs = 3000) {
 function clearMessages() {
     document.getElementById('errorMessage').classList.remove('active');
     document.getElementById('successMessage').classList.remove('active');
+}
+
+function getHelpTail(requestId, technical = false) {
+    const idPart = requestId ? ` (requestId: ${requestId})` : '';
+    if (technical) {
+        return ` Please contact Dev (Andrew)${idPart}.`;
+    }
+    return idPart ? `${idPart}.` : '';
+}
+
+function getApiErrorPayload(error) {
+    return error && error.payload ? error.payload : null;
+}
+
+function sanitizeForReport(value, depth = 0) {
+    if (depth > 4) {
+        return '[Truncated]';
+    }
+
+    if (value === null || value === undefined) {
+        return value;
+    }
+
+    if (typeof value === 'string') {
+        return value.length > 1500 ? `${value.slice(0, 1500)}...[truncated]` : value;
+    }
+
+    if (typeof value === 'number' || typeof value === 'boolean') {
+        return value;
+    }
+
+    if (Array.isArray(value)) {
+        return value.slice(0, 40).map((item) => sanitizeForReport(item, depth + 1));
+    }
+
+    if (typeof value === 'object') {
+        const out = {};
+        const entries = Object.entries(value).slice(0, 60);
+        entries.forEach(([key, nested]) => {
+            out[key] = sanitizeForReport(nested, depth + 1);
+        });
+        return out;
+    }
+
+    return String(value);
+}
+
+function collectClientSpecs() {
+    return {
+        url: window.location.href,
+        userAgent: navigator.userAgent || null,
+        language: navigator.language || null,
+        platform: navigator.platform || null,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
+        screen: {
+            width: window.screen?.width || null,
+            height: window.screen?.height || null
+        },
+        viewport: {
+            width: window.innerWidth || null,
+            height: window.innerHeight || null
+        }
+    };
+}
+
+function pickFirstErrorObject(payload) {
+    if (!payload || typeof payload !== 'object') {
+        return null;
+    }
+
+    if (payload.error && typeof payload.error === 'object') {
+        return payload.error;
+    }
+
+    if (Array.isArray(payload.results)) {
+        for (const item of payload.results) {
+            if (item?.error) {
+                return item.error;
+            }
+            if (item?.failure) {
+                return item.failure;
+            }
+            if (Array.isArray(item?.results)) {
+                const nested = item.results.find((entry) => entry?.error);
+                if (nested?.error) {
+                    return nested.error;
+                }
+            }
+        }
+    }
+
+    return null;
+}
+
+function getErrorContext(error) {
+    const payload = getApiErrorPayload(error) || {};
+    const firstError = pickFirstErrorObject(payload);
+    const conflicts = Array.isArray(firstError?.conflicts) ? firstError.conflicts : [];
+    return {
+        requestId: payload?.requestId || null,
+        code: firstError?.code || payload?.code || (error?.status === 404 ? 'ROUTE_NOT_FOUND' : null),
+        message: firstError?.message || payload?.message || error?.message || null,
+        conflicts
+    };
+}
+
+function buildErrorFingerprint(action, userMessage, context) {
+    const stable = [
+        action || 'unknown_action',
+        context?.code || 'unknown_code',
+        context?.requestId || 'no_request_id',
+        userMessage || 'no_message'
+    ];
+    return stable.join('|');
+}
+
+function rememberErrorFingerprint(fingerprint) {
+    if (reportedErrorFingerprints.has(fingerprint)) {
+        return false;
+    }
+    reportedErrorFingerprints.add(fingerprint);
+
+    if (reportedErrorFingerprints.size > 200) {
+        const first = reportedErrorFingerprints.values().next();
+        if (!first.done) {
+            reportedErrorFingerprints.delete(first.value);
+        }
+    }
+    return true;
+}
+
+function explainErrorCode(code, details = {}) {
+    const conflicts = Array.isArray(details.conflicts) ? details.conflicts : [];
+
+    switch (code) {
+        case 'INVALID_TIME_UPDATE':
+        case 'INVALID_TIME_FORMAT':
+        case 'INVALID_TIME_RANGE':
+            return {
+                message: 'The time entered is not valid. Please make sure the end time is later than the start time and try again.',
+                technical: false
+            };
+        case 'SLING_REQUEST_FAILED':
+            if (conflicts.length > 0) {
+                return {
+                    message: 'This update conflicts with an existing schedule item (for example approved time off). Choose a different time and try again.',
+                    technical: false
+                };
+            }
+            return {
+                message: 'Sling could not accept this update right now. Try again in a moment.',
+                technical: false
+            };
+        case 'SLING_TIMEOUT':
+        case 'SLING_NETWORK_ERROR':
+            return {
+                message: 'Sling is not responding right now. Wait a minute and try again.',
+                technical: false
+            };
+        case 'CASPIO_AUTH_FAILED':
+        case 'CASPIO_AUTH_BAD_RESPONSE':
+            return {
+                message: 'The system could not sign in to Caspio right now.',
+                technical: true
+            };
+        case 'CASPIO_REQUEST_FAILED':
+            return {
+                message: 'The system could not load team assignment data from Caspio right now.',
+                technical: true
+            };
+        case 'RECURRING_REQUIRES_OCCURRENCE_ID':
+        case 'INVALID_OCCURRENCE_ID':
+            return {
+                message: 'This shift reference is invalid for a safe update.',
+                technical: true
+            };
+        case 'ORIGIN_NOT_ALLOWED':
+            return {
+                message: 'This page is not allowed to call the API.',
+                technical: true
+            };
+        case 'INVALID_JSON':
+            return {
+                message: 'The request could not be processed. Please refresh and try again.',
+                technical: true
+            };
+        case 'INVALID_DATE':
+            return {
+                message: 'The selected date is invalid. Please pick a valid date and try again.',
+                technical: false
+            };
+        case 'INVALID_STATUS':
+            return {
+                message: 'The status value is not valid. Please choose Publish or Unpublish and try again.',
+                technical: false
+            };
+        case 'EMPTY_UPDATE':
+            return {
+                message: 'No changes were detected for this row, so nothing was updated.',
+                technical: false
+            };
+        case 'INVALID_BULK_PAYLOAD':
+        case 'INVALID_GROUP_PAYLOAD':
+        case 'INVALID_GROUPED_BULK_PAYLOAD':
+            return {
+                message: 'The update request was incomplete. Refresh the page and try again.',
+                technical: true
+            };
+        case 'INVALID_SHIFT_DATETIME':
+            return {
+                message: 'This shift has invalid date or time data in Sling and cannot be updated safely.',
+                technical: true
+            };
+        case 'SLING_RETRY_EXHAUSTED':
+            return {
+                message: 'Sling stayed unavailable after several retries. Wait a minute and try again.',
+                technical: false
+            };
+        case 'CASPIO_AUTH_CONFIG_ERROR':
+            return {
+                message: 'Caspio credentials are missing or invalid in the API configuration.',
+                technical: true
+            };
+        case 'ROUTE_NOT_FOUND':
+            return {
+                message: 'The API route was not found. This usually means the app and API deployment are out of sync.',
+                technical: true
+            };
+        case 'NETWORK_REQUEST_FAILED':
+            return {
+                message: 'Could not reach the scheduling service. Check your connection and try again.',
+                technical: false
+            };
+        default:
+            return {
+                message: 'Something unexpected happened while processing this request.',
+                technical: true
+            };
+    }
+}
+
+function explainApiError(error, fallbackMessage) {
+    const context = getErrorContext(error);
+    const requestId = context.requestId;
+    const code = context.code;
+    const conflicts = context.conflicts;
+    const mapped = explainErrorCode(code, { conflicts });
+    const baseMessage = mapped.message || fallbackMessage || context.message || 'Something went wrong.';
+    return `${baseMessage}${getHelpTail(requestId, mapped.technical)}`;
+}
+
+function summarizeGroupedFailure(response, contextLabel) {
+    const requestId = response?.requestId || null;
+    const failedGroups = Array.isArray(response?.results)
+        ? response.results.filter((group) => group.status !== 'success')
+        : [];
+
+    if (failedGroups.length === 0) {
+        return `${contextLabel} failed${getHelpTail(requestId, true)}`;
+    }
+
+    if (failedGroups.length === 1) {
+        const group = failedGroups[0];
+        const failureCode = group?.failure?.code || group?.results?.find((r) => r.status === 'failed')?.error?.code;
+        const failureConflicts =
+            group?.results?.flatMap((r) => (r.status === 'failed' ? r.error?.conflicts || [] : [])) || [];
+        const mapped = explainErrorCode(failureCode, { conflicts: failureConflicts });
+
+        if (group?.rolledBack === true) {
+            return `${mapped.message} This team was safely undone, so no one in it was changed. Fix the issue and try this team again${getHelpTail(requestId, mapped.technical)}`;
+        }
+
+        return `${mapped.message} This team could not be fully undone, so times shown here may not match Sling. Stop editing now${getHelpTail(requestId, true)}`;
+    }
+
+    const rolledBackCount = failedGroups.filter((group) => group.rolledBack === true).length;
+    const allRolledBack = rolledBackCount === failedGroups.length;
+    if (allRolledBack) {
+        return `Some teams were not updated. Failed teams were safely undone, so their Sling values were preserved. Review failed teams and retry${getHelpTail(requestId, false)}`;
+    }
+
+    return `Some teams failed and at least one could not be fully undone, so times on screen may not match Sling. Stop editing now${getHelpTail(requestId, true)}`;
+}
+
+async function reportErrorToOps({ action, userMessage, error = null, context = {} }) {
+    try {
+        const extracted = getErrorContext(error || {});
+        const fingerprint = buildErrorFingerprint(action, userMessage, extracted);
+        const shouldReport = rememberErrorFingerprint(fingerprint);
+        if (!shouldReport) {
+            return { delivered: false, duplicate: true };
+        }
+
+        const payload = {
+            action: action || 'unknown_action',
+            userMessage: userMessage || 'No user message provided.',
+            occurredAt: new Date().toISOString(),
+            error: {
+                code: extracted.code || null,
+                message: extracted.message || null,
+                requestId: extracted.requestId || null,
+                status: Number.isFinite(error?.status) ? error.status : null,
+                details: sanitizeForReport(getApiErrorPayload(error))
+            },
+            context: {
+                selectedDate: document.getElementById('dateInput')?.value || null,
+                ...sanitizeForReport(context)
+            },
+            client: collectClientSpecs()
+        };
+
+        const result = await apiRequest(ERROR_REPORT_PATH, 'POST', payload);
+        return {
+            delivered: result?.data?.delivered === true,
+            confirmation: result?.data?.confirmation || null,
+            requestId: result?.requestId || null
+        };
+    } catch {
+        return { delivered: false };
+    }
+}
+
+async function showErrorAndReport({ message, action, error = null, context = {} }) {
+    showError(message);
+    const report = await reportErrorToOps({ action, userMessage: message, error, context });
+    if (report.delivered) {
+        const confirmationText = report.confirmation
+            ? `Andrew was notified via Slack (${report.confirmation}).`
+            : 'Andrew was notified via Slack.';
+        appendErrorMessage(confirmationText);
+    }
 }
 
 function formatTime24To12(time24) {
@@ -166,10 +525,6 @@ function toggleUnmatchedShifts() {
 
     container.classList.toggle('active');
     arrow.classList.toggle('expanded');
-}
-
-function getRequestIdFromError(error) {
-    return error?.payload?.requestId ? ` (requestId: ${error.payload.requestId})` : '';
 }
 
 function showModal(message, type) {
@@ -409,7 +764,13 @@ async function searchSchedule() {
             warningMessage.classList.add('active');
         }
     } catch (error) {
-        showError(`Schedule load failed${getRequestIdFromError(error)}. ${error.message}`);
+        const userMessage = explainApiError(error, 'Could not load the schedule for this date.');
+        await showErrorAndReport({
+            message: userMessage,
+            action: 'load_schedule',
+            error,
+            context: { selectedDate: dateInput.value || null }
+        });
     } finally {
         searchBtn.disabled = false;
         loadingIndicator.classList.remove('active');
@@ -508,7 +869,13 @@ async function updateTeam(teamName) {
     const statusSelect = row.querySelector('.status-cell select');
 
     if (!startSelect || !endSelect || !statusSelect) {
-        alert('Error: Selects not found');
+        const message =
+            'This row could not enter edit mode correctly. Refresh and try again. If this keeps happening, contact Dev (Andrew).';
+        await showErrorAndReport({
+            message,
+            action: 'update_team_ui_state_invalid',
+            context: { teamName }
+        });
         return;
     }
 
@@ -534,36 +901,62 @@ async function updateTeam(teamName) {
     cancelBtn.disabled = true;
     updateBtn.textContent = 'Updating...';
 
+    let response = null;
+    let responseError = null;
+
     try {
-        const result = await apiRequest('/api/shifts/bulk', 'POST', {
-            updates: [
+        response = await apiRequest('/api/shifts/bulk', 'POST', {
+            groups: [
                 {
-                    occurrenceId: team.mainShift.id,
-                    startTime: newStartTime,
-                    endTime: newEndTime,
-                    status: newStatus
-                },
-                {
-                    occurrenceId: team.assistShift.id,
-                    startTime: newStartTime,
-                    endTime: newEndTime,
-                    status: newStatus
+                    groupId: teamName,
+                    atomic: true,
+                    updates: [
+                        {
+                            occurrenceId: team.mainShift.id,
+                            startTime: newStartTime,
+                            endTime: newEndTime,
+                            status: newStatus
+                        },
+                        {
+                            occurrenceId: team.assistShift.id,
+                            startTime: newStartTime,
+                            endTime: newEndTime,
+                            status: newStatus
+                        }
+                    ]
                 }
             ]
         });
-
-        if (result.summary !== 'ok') {
-            throw new Error(`Partial update (${result.counts.success}/${result.counts.total})`);
-        }
-
-        await searchSchedule();
-        showSuccess('Team updated successfully!');
     } catch (error) {
-        showError(`Error updating team${getRequestIdFromError(error)}: ${error.message}`);
-        updateBtn.disabled = false;
-        cancelBtn.disabled = false;
-        updateBtn.textContent = 'Update';
+        responseError = error;
     }
+
+    await searchSchedule();
+
+    if (responseError) {
+        const userMessage = explainApiError(responseError, 'Could not update this team.');
+        await showErrorAndReport({
+            message: userMessage,
+            action: 'update_team_request_failed',
+            error: responseError,
+            context: { teamName, startTime: newStartTime, endTime: newEndTime, status: newStatus }
+        });
+        return;
+    }
+
+    const groupResult = Array.isArray(response?.results) ? response.results[0] : null;
+    if (response.summary === 'ok' && groupResult?.status === 'success') {
+        showSuccess('Team updated successfully!');
+        return;
+    }
+
+    const groupFailureMessage = summarizeGroupedFailure(response, 'Team update failed');
+    await showErrorAndReport({
+        message: groupFailureMessage,
+        action: 'update_team_atomic_failed',
+        error: { payload: response, status: 200, message: 'Atomic team update failed' },
+        context: { teamName, startTime: newStartTime, endTime: newEndTime, status: newStatus }
+    });
 }
 
 function checkIfAnyTeamBeingEdited() {
@@ -678,7 +1071,7 @@ function cancelBulkEdit() {
 
 async function updateAllTeams() {
     const changedTeams = [];
-    const updates = [];
+    const groups = [];
 
     Object.keys(teamsData).forEach((teamName) => {
         const row = document.querySelector(`tr[data-team-name="${CSS.escape(teamName)}"]`);
@@ -710,26 +1103,30 @@ async function updateAllTeams() {
 
     changedTeams.forEach((changed) => {
         const team = teamsData[changed.teamName];
-        updates.push(
-            {
-                occurrenceId: team.mainShift.id,
-                startTime: changed.newStart,
-                endTime: changed.newEnd,
-                status: changed.newStatus
-            },
-            {
-                occurrenceId: team.assistShift.id,
-                startTime: changed.newStart,
-                endTime: changed.newEnd,
-                status: changed.newStatus
-            }
-        );
+        groups.push({
+            groupId: changed.teamName,
+            atomic: true,
+            updates: [
+                {
+                    occurrenceId: team.mainShift.id,
+                    startTime: changed.newStart,
+                    endTime: changed.newEnd,
+                    status: changed.newStatus
+                },
+                {
+                    occurrenceId: team.assistShift.id,
+                    startTime: changed.newStart,
+                    endTime: changed.newEnd,
+                    status: changed.newStatus
+                }
+            ]
+        });
     });
 
     showModal('Processing Request', 'loading');
 
     try {
-        const result = await apiRequest('/api/shifts/bulk', 'POST', { updates });
+        const result = await apiRequest('/api/shifts/bulk', 'POST', { groups });
 
         await searchSchedule();
 
@@ -740,19 +1137,31 @@ async function updateAllTeams() {
                 cancelBulkEdit();
             }, 1500);
         } else {
-            showModal(`Partial Success: ${result.counts.success}/${result.counts.total}`, 'error');
+            showModal(`Some teams were not updated (${result.counts.success}/${result.counts.total} teams).`, 'error');
             setTimeout(() => {
                 hideModal();
                 cancelBulkEdit();
             }, 2500);
-            showError(`Bulk update completed with failures${result.requestId ? ` (requestId: ${result.requestId})` : ''}.`);
+            const failureMessage = summarizeGroupedFailure(result, 'Bulk update completed with failures');
+            await showErrorAndReport({
+                message: failureMessage,
+                action: 'update_all_teams_partial_failure',
+                error: { payload: result, status: 200, message: 'Bulk grouped update failed' },
+                context: { teamCount: changedTeams.length }
+            });
         }
     } catch (error) {
-        showModal(`Update Failed: ${error.message}`, 'error');
+        showModal('Could not save team updates right now.', 'error');
         setTimeout(() => {
             hideModal();
         }, 3000);
-        showError(`Error updating teams${getRequestIdFromError(error)}: ${error.message}`);
+        const userMessage = explainApiError(error, 'Could not update teams right now.');
+        await showErrorAndReport({
+            message: userMessage,
+            action: 'update_all_teams_request_failed',
+            error,
+            context: { teamCount: changedTeams.length }
+        });
     }
 }
 
@@ -846,7 +1255,13 @@ async function updateUnmatchedShift(index) {
     const statusSelect = row.querySelector('.status-cell select');
 
     if (!startSelect || !endSelect || !statusSelect) {
-        alert('Error: Selects not found');
+        const message =
+            'This row could not enter edit mode correctly. Refresh and try again. If this keeps happening, contact Dev (Andrew).';
+        await showErrorAndReport({
+            message,
+            action: 'update_unmatched_ui_state_invalid',
+            context: { unmatchedIndex: index }
+        });
         return;
     }
 
@@ -913,7 +1328,13 @@ async function updateUnmatchedShift(index) {
 
         showSuccess(`Shift updated successfully!${result.requestId ? ` requestId: ${result.requestId}` : ''}`);
     } catch (error) {
-        showError(`Error updating shift${getRequestIdFromError(error)}: ${error.message}`);
+        const userMessage = explainApiError(error, 'Could not update this shift.');
+        await showErrorAndReport({
+            message: userMessage,
+            action: 'update_unmatched_shift_failed',
+            error,
+            context: { unmatchedIndex: index, startTime: newStartTime, endTime: newEndTime, status: newStatus }
+        });
         updateBtn.disabled = false;
         cancelBtn.disabled = false;
         updateBtn.textContent = 'Update';
