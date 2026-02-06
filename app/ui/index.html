@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sling Scheduler</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="topbar">
+        <h1>Sling Scheduler</h1>
+        <p>Single-occurrence updates with audit-friendly API responses.</p>
+      </header>
+
+      <section class="controls card">
+        <label for="dateInput">Date</label>
+        <input id="dateInput" type="date" required />
+        <button id="searchBtn" type="button">Load Schedule</button>
+      </section>
+
+      <section id="flash" class="flash" aria-live="polite"></section>
+
+      <section class="card" id="teamsSection" hidden>
+        <div class="section-head">
+          <h2>Teams</h2>
+          <div class="actions">
+            <button id="bulkEditBtn" type="button">Edit All</button>
+            <button id="bulkSaveBtn" type="button" hidden>Save All</button>
+            <button id="bulkCancelBtn" type="button" hidden>Cancel</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table id="teamsTable">
+            <thead>
+              <tr>
+                <th>Team</th>
+                <th>Main</th>
+                <th>Assist</th>
+                <th>Start</th>
+                <th>End</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card" id="unmatchedSection" hidden>
+        <div class="section-head">
+          <h2>Unmatched Shifts</h2>
+          <p class="caption">Shifts in Sling with no team mapping in Caspio.</p>
+        </div>
+        <div class="table-wrap">
+          <table id="unmatchedTable">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Start</th>
+                <th>End</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script src="./config.js"></script>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

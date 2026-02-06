@@ -1,0 +1,14 @@
+{
+  "name": "sling-scheduler-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cloud Run API for Sling Scheduler",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,44 @@
+name: Deploy UI to Netlify
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'app/ui/**'
+      - 'netlify.toml'
+      - '.github/workflows/deploy-ui-netlify.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Inject API base URL
+        run: |
+          cat > app/ui/config.js <<'EOCFG'
+          window.__SCHEDULER_API_BASE__ = '${{ secrets.SCHEDULER_API_BASE_URL }}';
+          EOCFG
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Netlify CLI
+        run: npm install -g netlify-cli
+
+      - name: Deploy to Netlify (production)
+        run: |
+          netlify deploy \
+            --dir app/ui \
+            --prod \
+            --site "$NETLIFY_SITE_ID" \
+            --message "GitHub Actions deploy: ${GITHUB_SHA}"
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}

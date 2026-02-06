@@ -1,0 +1,10 @@
+<!-- Caspio DataPage launcher snippet -->
+<button style='margin: 9px 0;' type="button" class="cbResultSetModifyButton" id="manageSling">Manage in Sling</button>
+
+<script>
+document.getElementById('manageSling').addEventListener('click', function() {
+  const date = '[@cdate]'; // MM/DD/YYYY from Caspio field token
+  const schedulerUrl = 'https://<your-netlify-site>.netlify.app';
+  window.open(`${schedulerUrl}?date=${encodeURIComponent(date)}`, '_blank');
+});
+</script>
