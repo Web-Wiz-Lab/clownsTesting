@@ -52,6 +52,7 @@ chmod +x infra/cloudrun/set-runtime-config.sh
 This sets:
 - `APP_TIMEZONE=America/New_York`
 - `CORS_ALLOWED_ORIGINS=https://sling-scheduler.netlify.app`
+- `READINESS_CACHE_MS=60000` (default if unset; increase for lower dependency probe load)
 - Sling/Caspio envs
 - Secret binding for `SLING_API_TOKEN`
 
@@ -60,6 +61,9 @@ This sets:
 gcloud run services describe sling-scheduler-api --region us-east1 --format='value(status.url)'
 # copy URL and test:
 curl -i "https://<cloud-run-url>/healthz"
+curl -i "https://<cloud-run-url>/readyz"
+# optional fresh dependency check:
+curl -i "https://<cloud-run-url>/readyz?refresh=1"
 ```
 
 ## 7. Add final GitHub secret for UI pipeline

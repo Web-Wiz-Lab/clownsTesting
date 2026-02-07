@@ -2,7 +2,9 @@
 
 ## Headers
 - `X-Request-Id` (optional request header): client-provided correlation ID.
-- `Idempotency-Key` (optional on `POST /api/shifts/bulk`): deduplicates repeat bulk submissions for a short TTL.
+- `Idempotency-Key` (optional on write requests): client-generated idempotency token.
+  - Current dedupe behavior is implemented for `POST /api/shifts/bulk`.
+  - UI sends this header for both bulk `POST` and single-shift `PUT`.
 
 ## `GET /healthz`
 Response:
@@ -14,6 +16,53 @@ Response:
   "timezone": "America/New_York"
 }
 ```
+
+## `GET /readyz`
+Purpose:
+- Dependency-aware readiness status for Sling + Caspio.
+- Uses short server-side cache to avoid dependency load on every probe.
+
+Query params:
+- `refresh=1` or `force=1` to bypass cache and execute fresh checks.
+
+Response (healthy):
+```json
+{
+  "requestId": "...",
+  "summary": "ok",
+  "service": "sling-scheduler-api",
+  "checks": {
+    "sling": { "status": "ok", "durationMs": 35 },
+    "caspio": { "status": "ok", "durationMs": 72 }
+  },
+  "checkedAt": "2026-02-07T03:10:00.000Z",
+  "cached": false
+}
+```
+
+Response (degraded):
+```json
+{
+  "requestId": "...",
+  "summary": "degraded",
+  "service": "sling-scheduler-api",
+  "checks": {
+    "sling": { "status": "ok", "durationMs": 30 },
+    "caspio": {
+      "status": "degraded",
+      "durationMs": 12003,
+      "code": "CASPIO_REQUEST_FAILED",
+      "message": "Caspio request failed"
+    }
+  },
+  "checkedAt": "2026-02-07T03:10:00.000Z",
+  "cached": false
+}
+```
+
+Status codes:
+- `200` when all checks are healthy.
+- `503` when one or more checks are degraded.
 
 ## `GET /api/schedule?date=YYYY-MM-DD`
 Response:

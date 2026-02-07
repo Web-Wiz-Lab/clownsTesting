@@ -35,7 +35,8 @@ export function loadEnv() {
     errorReportWebhookUrl: process.env.ERROR_REPORT_WEBHOOK_URL || '',
     corsAllowedOrigins: splitCsv(process.env.CORS_ALLOWED_ORIGINS),
     requestTimeoutMs: intFromEnv('REQUEST_TIMEOUT_MS', 12000),
-    retryAttempts: intFromEnv('RETRY_ATTEMPTS', 2)
+    retryAttempts: intFromEnv('RETRY_ATTEMPTS', 2),
+    readinessCacheMs: intFromEnv('READINESS_CACHE_MS', 60000)
   };
 
   const missing = REQUIRED.filter((key) => !process.env[key]);

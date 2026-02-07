@@ -41,3 +41,20 @@ Use newest-first entries and keep each section brief and concrete.
 - Open/Next:
   - After any future deploy, trigger one controlled error and confirm UI message + Slack notification still work.
   - Keep `README.md` and `docs/API_CONTRACT.md` aligned with endpoint behavior changes.
+
+## 2026-02-07
+- Scope:
+  - Implemented resilience quick wins focused on write idempotency headers and dependency readiness visibility.
+- Completed:
+  - UI now sends `Idempotency-Key` for write calls (`POST /api/shifts/bulk`, `PUT /api/shifts/:occurrenceId`).
+  - Added `GET /readyz` endpoint with Sling/Caspio dependency checks.
+  - Added readiness response caching plus cache bypass query (`/readyz?refresh=1`).
+  - Added route tests for `/readyz` healthy/degraded/cached/forced-refresh behavior.
+- Deploy/Config:
+  - Optional env var: `READINESS_CACHE_MS` (default `60000`).
+- Validation:
+  - `services/api` test suite passing (`npm test`, 4/4).
+- Open/Next:
+  - Replace process-local bulk idempotency cache with shared store (Redis or Firestore).
+  - Add Caspio timeout/retry parity with Sling client.
+  - Add compensating worker for rollback reconciliation failures.

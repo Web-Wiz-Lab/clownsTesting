@@ -4,6 +4,9 @@
 - `app/ui`: Browser client for scheduling coordinators.
 - `services/api`: Cloud Run HTTP API.
   - `src/app.js`: request-handler factory for testability and dependency injection.
+  - Operational endpoints:
+    - `GET /healthz` for liveness.
+    - `GET /readyz` for dependency readiness (Sling/Caspio) with short cache.
 - `infra/cloudrun`: deployment and operations runbook.
 
 ## Data Flow
@@ -18,6 +21,7 @@
 - Backend is the only Sling caller.
 - Occurrence ID must include `:<date>` suffix.
 - Bulk updates return per-item results for partial success.
+- UI sends `Idempotency-Key` on write calls; API currently dedupes bulk `POST`.
 - Write routes enforce CORS origin allowlist in production mode.
 - Timezone baseline is `America/New_York`.
 
@@ -25,3 +29,4 @@
 - Every response includes `requestId`.
 - Sling request metadata is logged in structured JSON.
 - Conflict payloads are parsed into a stable shape for UI consumption.
+- `/readyz` supports cached readiness checks and optional forced refresh.

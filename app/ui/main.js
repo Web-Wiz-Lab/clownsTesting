@@ -14,16 +14,40 @@ function buildRequestId() {
     return `req-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-async function apiRequest(path, method = 'GET', body = null) {
+function buildIdempotencyKey() {
+    if (window.crypto && window.crypto.randomUUID) {
+        return `idem-${window.crypto.randomUUID()}`;
+    }
+    return `idem-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function shouldSendIdempotencyKey(path, method) {
+    const verb = String(method || 'GET').toUpperCase();
+    if (verb === 'POST' && path === '/api/shifts/bulk') {
+        return true;
+    }
+    if (verb === 'PUT' && path.startsWith('/api/shifts/')) {
+        return true;
+    }
+    return false;
+}
+
+async function apiRequest(path, method = 'GET', body = null, options = {}) {
     const requestId = buildRequestId();
+    const headers = {
+        'Content-Type': 'application/json',
+        'X-Request-Id': requestId
+    };
+
+    if (options.idempotent === true || shouldSendIdempotencyKey(path, method)) {
+        headers['Idempotency-Key'] = options.idempotencyKey || buildIdempotencyKey();
+    }
+
     let response;
     try {
         response = await fetch(`${API_BASE}${path}`, {
             method,
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Request-Id': requestId
-            },
+            headers,
             body: body ? JSON.stringify(body) : undefined
         });
     } catch (cause) {

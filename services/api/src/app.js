@@ -38,7 +38,85 @@ function corsHeaders(originState, requestId) {
   };
 }
 
+const DEFAULT_READINESS_CACHE_MS = 60 * 1000;
+
+function isoDateToday() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function resolveReadinessCacheMs(env) {
+  const value = Number(env?.readinessCacheMs);
+  if (Number.isFinite(value) && value >= 0) {
+    return value;
+  }
+  return DEFAULT_READINESS_CACHE_MS;
+}
+
+async function runReadinessCheck(name, fn) {
+  const startedAt = Date.now();
+  try {
+    await fn();
+    return {
+      status: 'ok',
+      durationMs: Date.now() - startedAt
+    };
+  } catch (error) {
+    return {
+      status: 'degraded',
+      durationMs: Date.now() - startedAt,
+      code: error?.code || `${name.toUpperCase()}_UNAVAILABLE`,
+      message: error?.message || `${name} readiness check failed`
+    };
+  }
+}
+
+async function buildReadinessResult({ env, slingClient, caspioClient, requestId }) {
+  const today = isoDateToday();
+  const slingUserId = env.slingManagerUserId;
+
+  const [slingCheck, caspioCheck] = await Promise.all([
+    runReadinessCheck('sling', async () => {
+      if (typeof slingClient?.getUsersByIds !== 'function') {
+        throw new ApiError('Sling readiness check is not configured', {
+          statusCode: 503,
+          code: 'SLING_READINESS_UNAVAILABLE'
+        });
+      }
+      await slingClient.getUsersByIds([slingUserId], requestId);
+    }),
+    runReadinessCheck('caspio', async () => {
+      if (typeof caspioClient?.getTeamAssignmentsByDate !== 'function') {
+        throw new ApiError('Caspio readiness check is not configured', {
+          statusCode: 503,
+          code: 'CASPIO_READINESS_UNAVAILABLE'
+        });
+      }
+      await caspioClient.getTeamAssignmentsByDate(today, requestId);
+    })
+  ]);
+
+  const checks = {
+    sling: slingCheck,
+    caspio: caspioCheck
+  };
+
+  const summary = Object.values(checks).every((check) => check.status === 'ok') ? 'ok' : 'degraded';
+  return {
+    statusCode: summary === 'ok' ? 200 : 503,
+    summary,
+    checks,
+    checkedAt: new Date().toISOString(),
+    requestId
+  };
+}
+
 export function createRequestHandler({ env, slingClient, caspioClient, errorReporterClient = null }) {
+  const readinessCache = {
+    expiresAt: 0,
+    result: null
+  };
+  const readinessCacheMs = resolveReadinessCacheMs(env);
+
   return async function routeRequest(req, res) {
     const { requestId } = buildRequestContext(req);
     const origin = req.headers.origin || '';
@@ -71,6 +149,45 @@ export function createRequestHandler({ env, slingClient, caspioClient, errorRepo
             summary: 'ok',
             service: 'sling-scheduler-api',
             timezone: env.timezone
+          },
+          baseHeaders
+        );
+        return;
+      }
+
+      if (req.method === 'GET' && path === '/readyz') {
+        const forceRefresh = query.get('refresh') === '1' || query.get('force') === '1';
+        const isCacheValid =
+          !forceRefresh &&
+          readinessCache.result &&
+          readinessCache.expiresAt > Date.now();
+
+        let readiness = readinessCache.result;
+        let cached = false;
+
+        if (isCacheValid) {
+          cached = true;
+        } else {
+          readiness = await buildReadinessResult({
+            env,
+            slingClient,
+            caspioClient,
+            requestId
+          });
+          readinessCache.result = readiness;
+          readinessCache.expiresAt = Date.now() + readinessCacheMs;
+        }
+
+        sendJson(
+          res,
+          readiness.statusCode,
+          {
+            requestId,
+            summary: readiness.summary,
+            service: 'sling-scheduler-api',
+            checks: readiness.checks,
+            checkedAt: readiness.checkedAt,
+            cached
           },
           baseHeaders
         );

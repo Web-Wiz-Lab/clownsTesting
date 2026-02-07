@@ -16,6 +16,8 @@ function buildEnv(overrides = {}) {
 function buildClients(overrides = {}) {
   const calls = {
     getShiftById: 0,
+    getUsersByIds: 0,
+    getTeamAssignmentsByDate: 0,
     updateShift: 0,
     errorReports: 0
   };
@@ -46,6 +48,7 @@ function buildClients(overrides = {}) {
         return [];
       },
       async getUsersByIds() {
+        calls.getUsersByIds += 1;
         return [];
       },
       async getShiftById() {
@@ -60,6 +63,7 @@ function buildClients(overrides = {}) {
     },
     caspioClient: {
       async getTeamAssignmentsByDate() {
+        calls.getTeamAssignmentsByDate += 1;
         return [];
       },
       async getEntertainerSlingIds() {
@@ -140,6 +144,120 @@ test('GET /healthz returns ok response with request id', async () => {
   assert.equal(result.json.timezone, 'America/New_York');
   assert.ok(result.json.requestId);
   assert.ok(result.headers['X-Request-Id']);
+});
+
+test('GET /readyz returns ok when Sling and Caspio checks pass', async () => {
+  const { slingClient, caspioClient, errorReporterClient, calls } = buildClients();
+  const handler = createRequestHandler({
+    env: buildEnv(),
+    slingClient,
+    caspioClient,
+    errorReporterClient
+  });
+
+  const result = await runHandler(handler, {
+    method: 'GET',
+    url: '/readyz'
+  });
+
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.json.summary, 'ok');
+  assert.equal(result.json.service, 'sling-scheduler-api');
+  assert.equal(result.json.checks.sling.status, 'ok');
+  assert.equal(result.json.checks.caspio.status, 'ok');
+  assert.equal(result.json.cached, false);
+  assert.equal(calls.getUsersByIds, 1);
+  assert.equal(calls.getTeamAssignmentsByDate, 1);
+});
+
+test('GET /readyz returns degraded when a dependency check fails', async () => {
+  const { slingClient, errorReporterClient, calls } = buildClients();
+  const caspioClient = {
+    async getTeamAssignmentsByDate() {
+      calls.getTeamAssignmentsByDate += 1;
+      const error = new Error('Caspio unavailable');
+      error.code = 'CASPIO_REQUEST_FAILED';
+      throw error;
+    },
+    async getEntertainerSlingIds() {
+      return [];
+    }
+  };
+
+  const handler = createRequestHandler({
+    env: buildEnv(),
+    slingClient,
+    caspioClient,
+    errorReporterClient
+  });
+
+  const result = await runHandler(handler, {
+    method: 'GET',
+    url: '/readyz'
+  });
+
+  assert.equal(result.statusCode, 503);
+  assert.equal(result.json.summary, 'degraded');
+  assert.equal(result.json.checks.sling.status, 'ok');
+  assert.equal(result.json.checks.caspio.status, 'degraded');
+  assert.equal(result.json.checks.caspio.code, 'CASPIO_REQUEST_FAILED');
+  assert.equal(result.json.cached, false);
+  assert.equal(calls.getUsersByIds, 1);
+  assert.equal(calls.getTeamAssignmentsByDate, 1);
+});
+
+test('GET /readyz uses cached dependency state within cache window', async () => {
+  const { slingClient, caspioClient, errorReporterClient, calls } = buildClients();
+  const handler = createRequestHandler({
+    env: buildEnv({ readinessCacheMs: 10_000 }),
+    slingClient,
+    caspioClient,
+    errorReporterClient
+  });
+
+  const first = await runHandler(handler, {
+    method: 'GET',
+    url: '/readyz'
+  });
+
+  const second = await runHandler(handler, {
+    method: 'GET',
+    url: '/readyz'
+  });
+
+  assert.equal(first.statusCode, 200);
+  assert.equal(second.statusCode, 200);
+  assert.equal(first.json.cached, false);
+  assert.equal(second.json.cached, true);
+  assert.equal(calls.getUsersByIds, 1);
+  assert.equal(calls.getTeamAssignmentsByDate, 1);
+});
+
+test('GET /readyz refresh=1 bypasses cache and reruns checks', async () => {
+  const { slingClient, caspioClient, errorReporterClient, calls } = buildClients();
+  const handler = createRequestHandler({
+    env: buildEnv({ readinessCacheMs: 10_000 }),
+    slingClient,
+    caspioClient,
+    errorReporterClient
+  });
+
+  const first = await runHandler(handler, {
+    method: 'GET',
+    url: '/readyz'
+  });
+
+  const second = await runHandler(handler, {
+    method: 'GET',
+    url: '/readyz?refresh=1'
+  });
+
+  assert.equal(first.statusCode, 200);
+  assert.equal(second.statusCode, 200);
+  assert.equal(first.json.cached, false);
+  assert.equal(second.json.cached, false);
+  assert.equal(calls.getUsersByIds, 2);
+  assert.equal(calls.getTeamAssignmentsByDate, 2);
 });
 
 test('POST /api/shifts/bulk respects idempotency key', async () => {
