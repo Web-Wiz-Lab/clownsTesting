@@ -33,6 +33,11 @@ Use Cloud Run `Variables & Secrets`:
 - `CORS_ALLOWED_ORIGINS=https://sling-scheduler.netlify.app` (add Caspio origin only if needed)
 - `REQUEST_TIMEOUT_MS=12000`
 - `RETRY_ATTEMPTS=2`
+- `READINESS_CACHE_MS=60000`
+- `IDEMPOTENCY_BACKEND=firestore`
+- `IDEMPOTENCY_COLLECTION=idempotency_records`
+- `IDEMPOTENCY_PENDING_TTL_SECONDS=120`
+- `IDEMPOTENCY_TTL_SECONDS=600`
 
 Attach secrets:
 - `SLING_API_TOKEN` <- `sling-api-token`

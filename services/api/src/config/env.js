@@ -37,7 +37,12 @@ export function loadEnv() {
     corsAllowedOrigins: splitCsv(process.env.CORS_ALLOWED_ORIGINS),
     requestTimeoutMs: intFromEnv('REQUEST_TIMEOUT_MS', 12000),
     retryAttempts: intFromEnv('RETRY_ATTEMPTS', 2),
-    readinessCacheMs: intFromEnv('READINESS_CACHE_MS', 60000)
+    readinessCacheMs: intFromEnv('READINESS_CACHE_MS', 60000),
+    idempotencyBackend: process.env.IDEMPOTENCY_BACKEND || 'memory',
+    idempotencyCollection: process.env.IDEMPOTENCY_COLLECTION || 'idempotency_records',
+    idempotencyTtlSeconds: intFromEnv('IDEMPOTENCY_TTL_SECONDS', 600),
+    idempotencyPendingTtlSeconds: intFromEnv('IDEMPOTENCY_PENDING_TTL_SECONDS', 120),
+    idempotencyProjectId: process.env.IDEMPOTENCY_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || ''
   };
 
   const missing = REQUIRED.filter((key) => !process.env[key]);

@@ -53,8 +53,17 @@ This sets:
 - `APP_TIMEZONE=America/New_York`
 - `CORS_ALLOWED_ORIGINS=https://sling-scheduler.netlify.app`
 - `READINESS_CACHE_MS=60000` (default if unset; increase for lower dependency probe load)
+- `IDEMPOTENCY_BACKEND=firestore`
+- `IDEMPOTENCY_COLLECTION=idempotency_records`
+- `IDEMPOTENCY_PENDING_TTL_SECONDS=120`
+- `IDEMPOTENCY_TTL_SECONDS=600`
 - Sling/Caspio envs
 - Secret binding for `SLING_API_TOKEN`
+
+Firestore notes:
+- Ensure Firestore is enabled in project `sling-scheduler`.
+- Ensure the Cloud Run runtime service account has Firestore access (for example `roles/datastore.user`).
+- Configure a Firestore TTL policy on `idempotency_records.expiresAt` so records expire automatically.
 
 ## 6. Verify API
 ```bash

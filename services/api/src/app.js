@@ -1,5 +1,9 @@
-import { sendError, ApiError } from './middleware/errors.js';
-import { readIdempotentResult, storeIdempotentResult } from './middleware/idempotency.js';
+import { sendError, ApiError, toApiError } from './middleware/errors.js';
+import {
+  buildRequestFingerprint,
+  buildScopedIdempotencyKey,
+  createIdempotencyStore
+} from './middleware/idempotency.js';
 import { buildRequestContext } from './middleware/request-id.js';
 import { getPathAndQuery, readRequestBodySafely, sendJson } from './utils/http.js';
 import { handleGetSchedule } from './routes/schedule.js';
@@ -50,6 +54,113 @@ function resolveReadinessCacheMs(env) {
     return value;
   }
   return DEFAULT_READINESS_CACHE_MS;
+}
+
+function normalizeIdempotencyKey(raw) {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  return trimmed || null;
+}
+
+function toErrorPayload(requestId, error) {
+  const normalized = toApiError(error);
+  return {
+    statusCode: normalized.statusCode,
+    payload: {
+      requestId,
+      summary: 'failed',
+      error: {
+        code: normalized.code,
+        message: normalized.message,
+        details: normalized.details
+      }
+    }
+  };
+}
+
+function toIdempotencyConflictPayload({ requestId, path }) {
+  return {
+    statusCode: 409,
+    payload: {
+      requestId,
+      summary: 'failed',
+      error: {
+        code: 'IDEMPOTENCY_KEY_REUSED',
+        message: 'Idempotency key was already used for a different request payload',
+        details: { path }
+      }
+    }
+  };
+}
+
+function toIdempotencyInProgressPayload({ requestId, path }) {
+  return {
+    statusCode: 409,
+    payload: {
+      requestId,
+      summary: 'failed',
+      error: {
+        code: 'IDEMPOTENCY_IN_PROGRESS',
+        message: 'A request with this idempotency key is still being processed',
+        details: { path }
+      }
+    }
+  };
+}
+
+async function executeIdempotentWrite({
+  idempotencyStorePromise,
+  idempotencyKey,
+  method,
+  path,
+  body,
+  requestId,
+  execute
+}) {
+  if (!idempotencyKey) {
+    return execute();
+  }
+
+  const store = await idempotencyStorePromise;
+  const scopedKey = buildScopedIdempotencyKey({ method, path, idempotencyKey });
+  const fingerprint = buildRequestFingerprint({ method, path, body });
+  const reservation = await store.reserve({
+    scopedKey,
+    fingerprint,
+    requestId
+  });
+
+  if (reservation.status === 'replay') {
+    if (!Number.isInteger(reservation.statusCode) || reservation.payload === undefined) {
+      throw new ApiError('Stored idempotency response is invalid', {
+        statusCode: 500,
+        code: 'IDEMPOTENCY_REPLAY_INVALID'
+      });
+    }
+    return {
+      statusCode: reservation.statusCode,
+      payload: reservation.payload
+    };
+  }
+
+  if (reservation.status === 'conflict') {
+    return toIdempotencyConflictPayload({ requestId, path });
+  }
+
+  if (reservation.status === 'in_progress') {
+    return toIdempotencyInProgressPayload({ requestId, path });
+  }
+
+  const response = await execute();
+  await store.complete({
+    scopedKey,
+    fingerprint,
+    statusCode: response.statusCode,
+    payload: response.payload,
+    requestId
+  });
+
+  return response;
 }
 
 async function runReadinessCheck(name, fn) {
@@ -110,13 +221,22 @@ async function buildReadinessResult({ env, slingClient, caspioClient, requestId 
   };
 }
 
-export function createRequestHandler({ env, slingClient, caspioClient, errorReporterClient = null }) {
+export function createRequestHandler({
+  env,
+  slingClient,
+  caspioClient,
+  errorReporterClient = null,
+  idempotencyStore = null
+}) {
   const readinessCache = {
     expiresAt: 0,
     result: null
   };
   const readinessCacheMs = resolveReadinessCacheMs(env);
   const serviceName = env?.serviceName || 'sling-scheduling';
+  const idempotencyStorePromise = idempotencyStore
+    ? Promise.resolve(idempotencyStore)
+    : createIdempotencyStore(env);
 
   return async function routeRequest(req, res) {
     const { requestId } = buildRequestContext(req);
@@ -212,50 +332,68 @@ export function createRequestHandler({ env, slingClient, caspioClient, errorRepo
         const encodedId = path.replace('/api/shifts/', '');
         const occurrenceId = decodeURIComponent(encodedId);
         const body = (await readRequestBodySafely(req, requestId)) || {};
-
-        try {
-          const payload = await updateSingleOccurrence({
-            occurrenceId,
-            payload: body,
-            slingClient,
-            env,
-            requestId
-          });
-          sendJson(res, 200, payload, baseHeaders);
-        } catch (error) {
-          if (error instanceof ApiError) {
-            const normalized = normalizeSingleUpdateError(occurrenceId, error, requestId);
-            sendJson(res, error.statusCode || 400, normalized, baseHeaders);
-            return;
+        const idempotencyKey = normalizeIdempotencyKey(req.headers['idempotency-key']);
+        const result = await executeIdempotentWrite({
+          idempotencyStorePromise,
+          idempotencyKey,
+          method: req.method,
+          path,
+          body,
+          requestId,
+          execute: async () => {
+            try {
+              const payload = await updateSingleOccurrence({
+                occurrenceId,
+                payload: body,
+                slingClient,
+                env,
+                requestId
+              });
+              return { statusCode: 200, payload };
+            } catch (error) {
+              if (error instanceof ApiError) {
+                return {
+                  statusCode: error.statusCode || 400,
+                  payload: normalizeSingleUpdateError(occurrenceId, error, requestId)
+                };
+              }
+              throw error;
+            }
           }
-          throw error;
-        }
+        });
+        sendJson(res, result.statusCode, result.payload, baseHeaders);
         return;
       }
 
       if (req.method === 'POST' && path === '/api/shifts/bulk') {
-        const idempotencyKey = req.headers['idempotency-key'];
-        if (typeof idempotencyKey === 'string') {
-          const cached = readIdempotentResult(idempotencyKey);
-          if (cached) {
-            sendJson(res, cached.statusCode, cached.payload, baseHeaders);
-            return;
-          }
-        }
-
         const body = (await readRequestBodySafely(req, requestId)) || {};
-        const payload = await updateBulkOccurrences({
-          payload: body,
-          slingClient,
-          env,
-          requestId
+        const idempotencyKey = normalizeIdempotencyKey(req.headers['idempotency-key']);
+        const result = await executeIdempotentWrite({
+          idempotencyStorePromise,
+          idempotencyKey,
+          method: req.method,
+          path,
+          body,
+          requestId,
+          execute: async () => {
+            try {
+              const payload = await updateBulkOccurrences({
+                payload: body,
+                slingClient,
+                env,
+                requestId
+              });
+              const statusCode = payload.summary === 'failed' && payload.mode === 'flat' ? 409 : 200;
+              return { statusCode, payload };
+            } catch (error) {
+              if (error instanceof ApiError) {
+                return toErrorPayload(requestId, error);
+              }
+              throw error;
+            }
+          }
         });
-
-        const statusCode = payload.summary === 'failed' && payload.mode === 'flat' ? 409 : 200;
-        if (typeof idempotencyKey === 'string') {
-          storeIdempotentResult(idempotencyKey, { statusCode, payload });
-        }
-        sendJson(res, statusCode, payload, baseHeaders);
+        sendJson(res, result.statusCode, result.payload, baseHeaders);
         return;
       }
 

@@ -3,6 +3,9 @@
 Last updated: 2026-02-09  
 Priority: P1/P2 (depends on timeline for shared idempotency rollout)
 
+Status:
+- Implemented in the current codebase: API idempotent replay/conflict handling now covers `PUT /api/shifts/:occurrenceId` and `POST /api/shifts/bulk`.
+
 ## Problem
 
 UI sends `Idempotency-Key` for `PUT /api/shifts/:occurrenceId` in `app/ui/main.js`, but API replay logic currently applies only to `POST /api/shifts/bulk` in `services/api/src/app.js`.

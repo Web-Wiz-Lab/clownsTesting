@@ -35,6 +35,11 @@ paths:
           required: true
           schema:
             type: string
+        - in: header
+          name: Idempotency-Key
+          required: false
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -56,6 +61,8 @@ paths:
           description: Updated
         '400':
           description: Validation error
+        '409':
+          description: Idempotency key conflict or in-progress reservation
   /api/shifts/bulk:
     post:
       summary: Bulk update occurrences with partial success support
@@ -90,4 +97,4 @@ paths:
         '200':
           description: ok or partial_success
         '409':
-          description: full failure
+          description: full failure or idempotency key conflict/in-progress reservation

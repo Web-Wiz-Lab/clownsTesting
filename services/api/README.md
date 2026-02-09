@@ -20,6 +20,7 @@ npm test
 
 ## Endpoints
 - `GET /healthz`
+- `GET /readyz`
 - `GET /api/schedule?date=YYYY-MM-DD`
 - `PUT /api/shifts/:occurrenceId`
 - `POST /api/shifts/bulk`

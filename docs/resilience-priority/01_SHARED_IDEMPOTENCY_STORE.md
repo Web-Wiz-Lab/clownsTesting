@@ -3,6 +3,15 @@
 Last updated: 2026-02-09  
 Priority: P0
 
+## Implementation Decisions (Locked)
+
+- Backend: Firestore (project `sling-scheduler`)
+- Rollout scope: `POST /api/shifts/bulk` + `PUT /api/shifts/:occurrenceId` together
+- `PENDING` TTL: 120 seconds
+- `COMPLETED` TTL: 10 minutes
+- Same key + different fingerprint: `409 IDEMPOTENCY_KEY_REUSED`
+- Same key + active reservation: `409 IDEMPOTENCY_IN_PROGRESS`
+
 ## Why This Is Priority
 
 Current dedupe is process-local in `services/api/src/middleware/idempotency.js` (in-memory `Map`, 10-minute TTL).  
@@ -127,6 +136,4 @@ Add env vars (exact names TBD):
 
 ## Open Decisions
 
-1. Redis vs Firestore.
-2. Final TTL values for `PENDING` and `COMPLETED`.
-3. Whether in-progress returns `409` or `425`.
+1. None for implementation scope in this phase.

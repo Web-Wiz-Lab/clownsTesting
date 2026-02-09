@@ -62,6 +62,7 @@ Use newest-first entries and keep each section brief and concrete.
 ## 2026-02-09
 - Scope:
   - Fixed Cloud Run service-name drift and added deploy guardrails to prevent duplicate service creation.
+  - Implemented shared idempotency controls for write routes using Firestore-backed store support.
 - Completed:
   - Canonicalized Cloud Run deploy target to `sling-scheduling` in `.github/workflows/deploy-cloud-run.yml`.
   - Added pre-deploy check that fails workflow if canonical service is missing.
@@ -69,8 +70,20 @@ Use newest-first entries and keep each section brief and concrete.
   - Replaced hardcoded API service labels with runtime-derived value (`SERVICE_NAME` -> `K_SERVICE` -> fallback `sling-scheduling`).
   - Updated API route tests and docs for consistent service naming.
   - Converted `docs/CLOUD_RUN_SERVICE_DRIFT_2026-02-07.md` into an ongoing incident report with decommission checklist.
+  - Replaced process-local idempotency cache with shared-store abstraction (`memory` or `firestore`) in `services/api/src/middleware/idempotency.js`.
+  - Enforced idempotency reserve/replay semantics on both `POST /api/shifts/bulk` and `PUT /api/shifts/:occurrenceId`.
+  - Added deterministic fingerprint conflict handling (`IDEMPOTENCY_KEY_REUSED`) and in-progress handling (`IDEMPOTENCY_IN_PROGRESS`).
+  - Added idempotency-focused tests for replay/conflict/in-progress and route parity between POST/PUT.
 - Deploy/Config:
   - Canonical Cloud Run API service is `sling-scheduling`.
-  - Duplicate `sling-scheduler-api` can be deleted after final pre-delete validation in incident report.
+  - Duplicate `sling-scheduler-api` was deleted; incident report now tracks guardrails and prevention.
+  - New idempotency env vars:
+    - `IDEMPOTENCY_BACKEND=firestore`
+    - `IDEMPOTENCY_COLLECTION=idempotency_records`
+    - `IDEMPOTENCY_PENDING_TTL_SECONDS=120`
+    - `IDEMPOTENCY_TTL_SECONDS=600`
 - Validation:
-  - `services/api` test suite passing (`npm test`, 4/4).
+  - `services/api` test suite passing (`npm test`, 5/5).
+- Open/Next:
+  - Add Caspio timeout/retry parity with Sling client.
+  - Add compensating worker for rollback reconciliation failures.

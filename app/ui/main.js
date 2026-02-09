@@ -321,6 +321,16 @@ function explainErrorCode(code, details = {}) {
                 message: 'The update request was incomplete. Refresh the page and try again.',
                 technical: true
             };
+        case 'IDEMPOTENCY_KEY_REUSED':
+            return {
+                message: 'This update key was already used for a different change. Retry the action from a fresh click.',
+                technical: false
+            };
+        case 'IDEMPOTENCY_IN_PROGRESS':
+            return {
+                message: 'This update is still processing. Please wait a moment before trying again.',
+                technical: false
+            };
         case 'INVALID_SHIFT_DATETIME':
             return {
                 message: 'This shift has invalid date or time data in Sling and cannot be updated safely.',

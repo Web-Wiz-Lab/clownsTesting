@@ -310,6 +310,177 @@ test('POST /api/shifts/bulk respects idempotency key', async () => {
   assert.equal(calls.updateShift, 1);
 });
 
+test('POST /api/shifts/bulk returns 409 when idempotency key is reused with different payload', async () => {
+  const { slingClient, caspioClient, errorReporterClient, calls } = buildClients();
+  const handler = createRequestHandler({
+    env: buildEnv(),
+    slingClient,
+    caspioClient,
+    errorReporterClient
+  });
+
+  const key = `idem-${Date.now()}`;
+  const firstPayload = {
+    updates: [
+      {
+        occurrenceId: '4709706576:2026-02-07',
+        startTime: '12:45',
+        endTime: '17:00',
+        status: 'published'
+      }
+    ]
+  };
+  const secondPayload = {
+    updates: [
+      {
+        occurrenceId: '4709706576:2026-02-07',
+        startTime: '13:00',
+        endTime: '17:00',
+        status: 'published'
+      }
+    ]
+  };
+
+  const first = await runHandler(handler, {
+    method: 'POST',
+    url: '/api/shifts/bulk',
+    headers: { 'idempotency-key': key },
+    body: firstPayload
+  });
+
+  const second = await runHandler(handler, {
+    method: 'POST',
+    url: '/api/shifts/bulk',
+    headers: { 'idempotency-key': key },
+    body: secondPayload
+  });
+
+  assert.equal(first.statusCode, 200);
+  assert.equal(second.statusCode, 409);
+  assert.equal(second.json.error.code, 'IDEMPOTENCY_KEY_REUSED');
+  assert.equal(calls.getShiftById, 1);
+  assert.equal(calls.updateShift, 1);
+});
+
+test('PUT /api/shifts/:occurrenceId respects idempotency key', async () => {
+  const { slingClient, caspioClient, errorReporterClient, calls } = buildClients();
+  const handler = createRequestHandler({
+    env: buildEnv(),
+    slingClient,
+    caspioClient,
+    errorReporterClient
+  });
+
+  const key = `idem-put-${Date.now()}`;
+  const payload = {
+    startTime: '11:30',
+    endTime: '16:30',
+    status: 'published'
+  };
+
+  const first = await runHandler(handler, {
+    method: 'PUT',
+    url: '/api/shifts/4709706576%3A2026-02-07',
+    headers: { 'idempotency-key': key },
+    body: payload
+  });
+
+  const second = await runHandler(handler, {
+    method: 'PUT',
+    url: '/api/shifts/4709706576%3A2026-02-07',
+    headers: { 'idempotency-key': key },
+    body: payload
+  });
+
+  assert.equal(first.statusCode, 200);
+  assert.equal(second.statusCode, 200);
+  assert.equal(first.json.summary, 'ok');
+  assert.equal(second.json.summary, 'ok');
+  assert.equal(calls.getShiftById, 1);
+  assert.equal(calls.updateShift, 1);
+});
+
+test('PUT /api/shifts/:occurrenceId returns 409 when idempotency key is reused with different payload', async () => {
+  const { slingClient, caspioClient, errorReporterClient, calls } = buildClients();
+  const handler = createRequestHandler({
+    env: buildEnv(),
+    slingClient,
+    caspioClient,
+    errorReporterClient
+  });
+
+  const key = `idem-put-${Date.now()}`;
+
+  const first = await runHandler(handler, {
+    method: 'PUT',
+    url: '/api/shifts/4709706576%3A2026-02-07',
+    headers: { 'idempotency-key': key },
+    body: {
+      startTime: '11:30',
+      endTime: '16:30',
+      status: 'published'
+    }
+  });
+
+  const second = await runHandler(handler, {
+    method: 'PUT',
+    url: '/api/shifts/4709706576%3A2026-02-07',
+    headers: { 'idempotency-key': key },
+    body: {
+      startTime: '12:00',
+      endTime: '16:30',
+      status: 'published'
+    }
+  });
+
+  assert.equal(first.statusCode, 200);
+  assert.equal(second.statusCode, 409);
+  assert.equal(second.json.error.code, 'IDEMPOTENCY_KEY_REUSED');
+  assert.equal(calls.getShiftById, 1);
+  assert.equal(calls.updateShift, 1);
+});
+
+test('idempotency in-progress reservation returns 409 without executing write route', async () => {
+  const { slingClient, caspioClient, errorReporterClient, calls } = buildClients();
+  const handler = createRequestHandler({
+    env: buildEnv(),
+    slingClient,
+    caspioClient,
+    errorReporterClient,
+    idempotencyStore: {
+      async reserve() {
+        return { status: 'in_progress' };
+      },
+      async complete() {
+        throw new Error('complete should not be called');
+      }
+    }
+  });
+
+  const result = await runHandler(handler, {
+    method: 'POST',
+    url: '/api/shifts/bulk',
+    headers: {
+      'idempotency-key': 'idem-pending'
+    },
+    body: {
+      updates: [
+        {
+          occurrenceId: '4709706576:2026-02-07',
+          startTime: '12:45',
+          endTime: '17:00',
+          status: 'published'
+        }
+      ]
+    }
+  });
+
+  assert.equal(result.statusCode, 409);
+  assert.equal(result.json.error.code, 'IDEMPOTENCY_IN_PROGRESS');
+  assert.equal(calls.getShiftById, 0);
+  assert.equal(calls.updateShift, 0);
+});
+
 test('Disallowed origin is rejected in production mode', async () => {
   const { slingClient, caspioClient, errorReporterClient } = buildClients();
   const handler = createRequestHandler({

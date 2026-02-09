@@ -3,8 +3,12 @@
 ## Headers
 - `X-Request-Id` (optional request header): client-provided correlation ID.
 - `Idempotency-Key` (optional on write requests): client-generated idempotency token.
-  - Current dedupe behavior is implemented for `POST /api/shifts/bulk`.
-  - UI sends this header for both bulk `POST` and single-shift `PUT`.
+  - Dedupe behavior is implemented for:
+    - `POST /api/shifts/bulk`
+    - `PUT /api/shifts/:occurrenceId`
+  - Scope key is route+resource path plus method, so replays are per write target.
+  - Reusing the same key with a different request payload returns `409` (`IDEMPOTENCY_KEY_REUSED`).
+  - Reusing the same key while the first request is still in progress returns `409` (`IDEMPOTENCY_IN_PROGRESS`).
 
 ## `GET /healthz`
 Note:
@@ -103,6 +107,10 @@ Response:
 }
 ```
 
+Possible conflict response (`409`):
+- `IDEMPOTENCY_KEY_REUSED`
+- `IDEMPOTENCY_IN_PROGRESS`
+
 ## `POST /api/shifts/bulk`
 Preferred request (grouped atomic mode):
 ```json
@@ -192,6 +200,11 @@ Flat response:
   ]
 }
 ```
+
+Possible conflict response (`409`):
+- Business failure in flat mode (`summary: "failed"`)
+- `IDEMPOTENCY_KEY_REUSED`
+- `IDEMPOTENCY_IN_PROGRESS`
 
 ## `POST /api/error-report`
 Purpose:

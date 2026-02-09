@@ -20,6 +20,7 @@ This folder contains focused planning docs for the current top-priority resilien
 
 ## Notes
 
+- `01_SHARED_IDEMPOTENCY_STORE.md` has been implemented (Firestore-backed support plus POST/PUT parity).
 - `03_CASPIO_TIMEOUT_RETRY_PARITY.md` can be delivered independently.
 - `04_PUT_IDEMPOTENCY_MISMATCH.md` is best done with `01_SHARED_IDEMPOTENCY_STORE.md`.
 - `02_ROLLBACK_COMPENSATING_WORKER.md` introduces queue/worker architecture and should follow infra decisions.

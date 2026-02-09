@@ -21,7 +21,7 @@
 - Backend is the only Sling caller.
 - Occurrence ID must include `:<date>` suffix.
 - Bulk updates return per-item results for partial success.
-- UI sends `Idempotency-Key` on write calls; API currently dedupes bulk `POST`.
+- UI sends `Idempotency-Key` on write calls; API enforces idempotent replay/conflict handling for bulk `POST` and single-shift `PUT`.
 - Write routes enforce CORS origin allowlist in production mode.
 - Timezone baseline is `America/New_York`.
 
