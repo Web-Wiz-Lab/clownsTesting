@@ -59,16 +59,14 @@ chmod +x infra/cloudrun/set-runtime-config.sh
 ```
 
 This sets:
-- `APP_TIMEZONE=America/New_York`
-- `CORS_ALLOWED_ORIGINS=https://sling-scheduler.netlify.app`
-- `READINESS_CACHE_MS=60000` (default if unset; increase for lower dependency probe load)
-- `IDEMPOTENCY_BACKEND=firestore`
-- `IDEMPOTENCY_COLLECTION=idempotency_records`
-- `IDEMPOTENCY_PENDING_TTL_SECONDS=120`
-- `IDEMPOTENCY_TTL_SECONDS=600`
-- `IDEMPOTENCY_DATABASE_ID=sling-scheduler` (required for this project; Firestore DB is not `(default)`)
-- Sling/Caspio envs
-- Secret binding for `SLING_API_TOKEN`
+- Cloud Run runtime defaults via `infra/cloudrun/set-runtime-config.sh`
+- Sling/Caspio envs and `SLING_API_TOKEN` secret binding
+
+Canonical runtime variable values are maintained in one place:
+- `README.md` -> `3. Cloud Run Environment Variables`
+
+Project-specific non-default requirement:
+- `IDEMPOTENCY_DATABASE_ID=sling-scheduler` (required; Firestore DB is not `(default)`).
 
 Firestore notes:
 - Ensure Firestore is enabled in project `sling-scheduler`.

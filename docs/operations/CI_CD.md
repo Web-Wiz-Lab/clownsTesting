@@ -37,16 +37,10 @@ Grant the Cloud Run runtime service account at least:
 - `roles/datastore.user` (for Firestore idempotency backend)
 
 ## Post-Deploy Manual Step
-Cloud Run environment variables and secrets still need to be configured in service settings:
-- `SLING_API_TOKEN` (Secret Manager)
-- `SLING_CALENDAR_ID`
-- `SLING_MANAGER_USER_ID`
-- `CASPIO_BASE_URL`
-- `CASPIO_TOKEN_WEBHOOK_URL` or `CASPIO_ACCESS_TOKEN`
-- `APP_TIMEZONE=America/New_York`
-- `CORS_ALLOWED_ORIGINS=https://sling-scheduler.netlify.app` (plus Caspio origin only if Caspio calls API directly)
-- `IDEMPOTENCY_BACKEND=firestore`
-- `IDEMPOTENCY_COLLECTION=idempotency_records`
-- `IDEMPOTENCY_PENDING_TTL_SECONDS=120`
-- `IDEMPOTENCY_TTL_SECONDS=600`
-- `IDEMPOTENCY_DATABASE_ID=sling-scheduler` (required in this project)
+Cloud Run runtime variables/secrets are configured at service level, but the canonical list is intentionally maintained in one place only:
+- `README.md` -> `3. Cloud Run Environment Variables`
+
+Use this file for pipeline setup and deployment authority rules; use `README.md` for runtime variable truth.
+
+Critical non-default value for this project:
+- `IDEMPOTENCY_DATABASE_ID=sling-scheduler` (Firestore DB is not `(default)`).

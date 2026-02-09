@@ -8,6 +8,7 @@ Current status:
 - Canonical service is `sling-scheduling`.
 - Duplicate service `sling-scheduler-api` was deleted.
 - Secondary deploy-path drift (GitHub Actions + Cloud Run/Cloud Build source deploy) was identified and documented.
+- This file is an incident history document; current runtime config truth lives in `README.md`.
 
 Canonical production references:
 - API service name: `sling-scheduling`

@@ -1,5 +1,7 @@
 # Sling Scheduler Rebuild Plan
 
+Historical planning document. Use `README.md` and `SOURCE_OF_TRUTH.md` for current runtime/deployment truth.
+
 ## Objective
 Rebuild the scheduling workflow from scratch into a robust, debuggable, and future-proof system with strict separation of concerns.
 

@@ -2,6 +2,7 @@
 
 Date: 2026-02-09  
 Scope reviewed: current API/UI codebase, `docs/operations/CHANGELOG.md`, and related resilience/ops docs.
+This is a dated resilience snapshot; treat `README.md` as current runtime/deployment configuration truth.
 
 ## Current status snapshot
 

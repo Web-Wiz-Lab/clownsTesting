@@ -60,7 +60,7 @@ Open order for most sessions:
 
 | Path | What it contains | When to open |
 |---|---|---|
-| `docs/operations/GCP_SETUP.md` | End-to-end GCP setup steps, runtime vars, Firestore notes, revision sanity checks. | Open for Cloud Run runtime setup and project bootstrap. |
+| `docs/operations/GCP_SETUP.md` | End-to-end GCP setup flow, Firestore notes, revision sanity checks, and links to canonical runtime env docs. | Open for Cloud Run runtime setup and project bootstrap. |
 | `docs/operations/CI_CD.md` | GitHub Actions workflows, required secrets, deploy authority rule. | Open when pipeline/deployment behavior is in scope. |
 | `docs/operations/NETLIFY_SETUP.md` | Netlify setup and UI deploy wiring. | Open for UI hosting/deploy changes. |
 | `infra/cloudrun/README.md` | Cloud Run deploy runbook and runtime config reference. | Open for service deployment and runtime variables. |

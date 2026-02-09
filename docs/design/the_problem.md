@@ -1,5 +1,8 @@
 # The Problem
 
+Historical context document from the pre-rebuild proxy era. Do not use this file as current operational guidance.
+The following describes the issues in the past method used.
+
 Despite this system working flawlessly with V1 `/workspaces/clownsTesting/pastVersions/V1.html`, it started to present issues. First it was with using "corsproxy.io" CORS error (despite working just fine for 3 months). So I moved on with V2 and V3, using Make.com as the proxy middleware.
 
 After fixing proxy issues by changing the method from using corsproxy.io to a Make.com workflow, it seemed like it worked fine, individual schedule update is working fine, but when a user tried to do a batch schedule update, it failed. After investigating, it wasn't a technical issue but rather a conflict. Here's what happened:
@@ -79,7 +82,7 @@ What the webhook received:
 [
     {
         "url": "https://api.getsling.com/v1/shifts/bulk",
-        "authorization": "fbea7cd696b24dec92fcc1602d3ee79c",
+        "authorization": "REPLACE_WITH_SLING_TOKEN",
         "method": "POST",
         "body": "[{\"id\":\"4738748479\",\"summary\":\"\",\"status\":\"published\",\"type\":\"shift\",\"fullDay\":false,\"openEnd\":true,\"dtstart\":\"2026-08-10T11:30:00-04:00\",\"dtend\":\"2026-08-10T16:30:00-04:00\",\"approved\":null,\"assigneeNotes\":\"\",\"fromIntegration\":null,\"user\":{\"id\":21341367},\"location\":{\"id\":151378},\"position\":{\"id\":151377},\"breakDuration\":0,\"available\":false,\"slots\":1,\"acceptance\":\"accepted\",\"acceptanceReason\":\"\",\"tags\":[],\"taskTemplates\":[]},{\"id\":\"4738738907:2026-08-10\",\"summary\":\"\",\"status\":\"published\",\"type\":\"shift\",\"fullDay\":false,\"openEnd\":true,\"dtstart\":\"2026-08-10T11:30:00-04:00\",\"dtend\":\"2026-08-10T16:30:00-04:00\",\"approved\":null,\"assigneeNotes\":\"\",\"fromIntegration\":null,\"user\":{\"id\":24861296},\"location\":{\"id\":151378},\"position\":{\"id\":151397},\"breakDuration\":0,\"available\":false,\"slots\":1,\"acceptance\":null,\"acceptanceReason\":null,\"tags\":[],\"taskTemplates\":[]}]"
     }

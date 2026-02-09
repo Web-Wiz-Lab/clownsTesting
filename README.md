@@ -91,7 +91,7 @@ Bound in Cloud Run as env var:
 
 Required runtime vars:
 - `SLING_CALENDAR_ID=7858`
-- `CASPIO_TOKEN_WEBHOOK_URL=https://hook.us1.make.com/gcvwhpnw7fr8ptbg8d3dop5qyhmz6uqr`
+- `CASPIO_TOKEN_WEBHOOK_URL=https://hook.us1.make.com/<your-make-webhook-id>`
 - `REQUEST_TIMEOUT_MS=12000`
 - `RETRY_ATTEMPTS=2`
 - `APP_TIMEZONE=America/New_York`
@@ -99,7 +99,7 @@ Required runtime vars:
 - `SLING_MANAGER_USER_ID=21341367`
 - `CASPIO_BASE_URL=https://c0ebl152.caspio.com/rest/v2`
 - `CORS_ALLOWED_ORIGINS=https://sling-scheduler.netlify.app`
-- `ERROR_REPORT_WEBHOOK_URL=https://hooks.zapier.com/hooks/catch/18732682/ueuyn1t/`
+- `ERROR_REPORT_WEBHOOK_URL=https://hooks.zapier.com/hooks/catch/<zap-id>/<hook-id>/`
 - `READINESS_CACHE_MS=60000`
 - `IDEMPOTENCY_BACKEND=firestore`
 - `IDEMPOTENCY_COLLECTION=idempotency_records`

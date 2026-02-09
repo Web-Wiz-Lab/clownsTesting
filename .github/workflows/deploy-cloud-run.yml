@@ -7,7 +7,9 @@ on:
       - main
     paths:
       - 'services/api/**'
-      - 'infra/cloudrun/**'
+      - 'infra/cloudrun/deploy.sh'
+      - 'infra/cloudrun/set-runtime-config.sh'
+      - 'infra/cloudrun/setup-github-wif.sh'
       - '.github/workflows/deploy-cloud-run.yml'
 
 env:

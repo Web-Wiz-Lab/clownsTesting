@@ -2,6 +2,7 @@
 
 This file is the quick handoff log for future sessions.
 Use newest-first entries and keep each section brief and concrete.
+Do not treat this file as runtime configuration truth; use `README.md` for current canonical env/service settings.
 
 ## Entry Template
 

@@ -32,7 +32,7 @@ Request:
             },
             {
                 "name": "Authorization",
-                "value": "fbea7cd696b24dec92fcc1602d3ee79c"
+                "value": "REPLACE_WITH_SLING_TOKEN"
             }
         ],
         "contentType": "custom",
