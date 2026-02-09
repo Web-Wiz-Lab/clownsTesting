@@ -3,7 +3,7 @@
 Target:
 - Project ID: `sling-scheduler`
 - Region: `us-east1`
-- Service: `sling-scheduler-api`
+- Service: `sling-scheduling`
 
 ## 1. Configure Project
 ```bash

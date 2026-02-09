@@ -39,7 +39,7 @@ echo -n 'YOUR_SLING_TOKEN' | gcloud secrets versions add sling-api-token --data-
 ## 4. Deploy API from GitHub Actions
 In GitHub -> Actions, run `Deploy API to Cloud Run`.
 
-The first run creates `sling-scheduler-api` service.
+The workflow targets the canonical service `sling-scheduling` and fails early if that service is missing (anti-drift guard).
 
 ## 5. Configure Cloud Run runtime vars/secrets
 Run in Cloud Shell (replace webhook URL):
@@ -58,7 +58,7 @@ This sets:
 
 ## 6. Verify API
 ```bash
-gcloud run services describe sling-scheduler-api --region us-east1 --format='value(status.url)'
+gcloud run services describe sling-scheduling --region us-east1 --format='value(status.url)'
 # copy URL and test:
 curl -i "https://<cloud-run-url>/healthz"
 curl -i "https://<cloud-run-url>/readyz"

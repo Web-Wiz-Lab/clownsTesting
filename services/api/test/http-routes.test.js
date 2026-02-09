@@ -7,6 +7,7 @@ import { createRequestHandler } from '../src/app.js';
 function buildEnv(overrides = {}) {
   return {
     nodeEnv: 'test',
+    serviceName: 'sling-scheduling',
     timezone: 'America/New_York',
     corsAllowedOrigins: [],
     ...overrides
@@ -141,6 +142,7 @@ test('GET /healthz returns ok response with request id', async () => {
 
   assert.equal(result.statusCode, 200);
   assert.equal(result.json.summary, 'ok');
+  assert.equal(result.json.service, 'sling-scheduling');
   assert.equal(result.json.timezone, 'America/New_York');
   assert.ok(result.json.requestId);
   assert.ok(result.headers['X-Request-Id']);
@@ -162,7 +164,7 @@ test('GET /readyz returns ok when Sling and Caspio checks pass', async () => {
 
   assert.equal(result.statusCode, 200);
   assert.equal(result.json.summary, 'ok');
-  assert.equal(result.json.service, 'sling-scheduler-api');
+  assert.equal(result.json.service, 'sling-scheduling');
   assert.equal(result.json.checks.sling.status, 'ok');
   assert.equal(result.json.checks.caspio.status, 'ok');
   assert.equal(result.json.cached, false);
@@ -447,6 +449,6 @@ test('POST /api/error-report forwards payload and returns trigger acknowledgment
   assert.equal(calls.errorReports, 1);
   assert.equal(captured.length, 1);
   assert.equal(captured[0].source, 'sling-scheduler-ui');
-  assert.equal(captured[0].server.service, 'sling-scheduler-api');
+  assert.equal(captured[0].server.service, 'sling-scheduling');
   assert.equal(captured[0].event.action, 'update_team');
 });

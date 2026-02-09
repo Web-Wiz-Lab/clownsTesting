@@ -24,6 +24,7 @@ export function loadEnv() {
   const env = {
     nodeEnv: process.env.NODE_ENV || 'development',
     port: intFromEnv('PORT', 8080),
+    serviceName: process.env.SERVICE_NAME || process.env.K_SERVICE || 'sling-scheduling',
     timezone: process.env.APP_TIMEZONE || 'America/New_York',
     slingBaseUrl: process.env.SLING_BASE_URL || 'https://api.getsling.com',
     slingApiToken: process.env.SLING_API_TOKEN || '',

@@ -116,6 +116,7 @@ export function createRequestHandler({ env, slingClient, caspioClient, errorRepo
     result: null
   };
   const readinessCacheMs = resolveReadinessCacheMs(env);
+  const serviceName = env?.serviceName || 'sling-scheduling';
 
   return async function routeRequest(req, res) {
     const { requestId } = buildRequestContext(req);
@@ -147,7 +148,7 @@ export function createRequestHandler({ env, slingClient, caspioClient, errorRepo
           {
             requestId,
             summary: 'ok',
-            service: 'sling-scheduler-api',
+            service: serviceName,
             timezone: env.timezone
           },
           baseHeaders
@@ -184,7 +185,7 @@ export function createRequestHandler({ env, slingClient, caspioClient, errorRepo
           {
             requestId,
             summary: readiness.summary,
-            service: 'sling-scheduler-api',
+            service: serviceName,
             checks: readiness.checks,
             checkedAt: readiness.checkedAt,
             cached
@@ -272,7 +273,7 @@ export function createRequestHandler({ env, slingClient, caspioClient, errorRepo
           reportRequestId: requestId,
           receivedAt: new Date().toISOString(),
           server: {
-            service: 'sling-scheduler-api',
+            service: serviceName,
             method: req.method,
             path,
             origin: req.headers.origin || null,

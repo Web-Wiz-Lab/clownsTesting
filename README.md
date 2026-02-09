@@ -232,16 +232,14 @@ Important design rule:
 - Keep CORS allowlist strict.
 - Keep runtime and deploy identities separate.
 
-## Known Service Names
+## Canonical Service Name
 
-There may be two names in tooling/docs:
-- `sling-scheduler-api` (workflow default)
-- `sling-scheduling` (current deployed service URL)
+Canonical Cloud Run service:
+- `sling-scheduling`
 
-If you standardize on one, update:
-- `.github/workflows/deploy-cloud-run.yml` (`SERVICE_NAME`)
-- `infra/cloudrun/set-runtime-config.sh` (`SERVICE_NAME` default)
-- documentation references.
+Deploy guardrail:
+- `.github/workflows/deploy-cloud-run.yml` fails early if `sling-scheduling` is missing.
+- This is intentional to prevent accidental creation of drifted services.
 
 ## Maintenance Checklist for Future Changes
 

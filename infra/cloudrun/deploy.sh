@@ -3,7 +3,7 @@ set -euo pipefail
 
 PROJECT_ID="${PROJECT_ID:-sling-scheduler}"
 REGION="${REGION:-us-east1}"
-SERVICE_NAME="${SERVICE_NAME:-sling-scheduler-api}"
+SERVICE_NAME="${SERVICE_NAME:-sling-scheduling}"
 IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/${SERVICE_NAME}:$(date +%Y%m%d-%H%M%S)"
 
 if ! command -v gcloud >/dev/null 2>&1; then

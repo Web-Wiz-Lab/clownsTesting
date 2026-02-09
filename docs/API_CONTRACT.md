@@ -7,12 +7,15 @@
   - UI sends this header for both bulk `POST` and single-shift `PUT`.
 
 ## `GET /healthz`
+Note:
+- `service` is runtime-derived (`SERVICE_NAME` or Cloud Run `K_SERVICE`).
+
 Response:
 ```json
 {
   "requestId": "...",
   "summary": "ok",
-  "service": "sling-scheduler-api",
+  "service": "sling-scheduling",
   "timezone": "America/New_York"
 }
 ```
@@ -30,7 +33,7 @@ Response (healthy):
 {
   "requestId": "...",
   "summary": "ok",
-  "service": "sling-scheduler-api",
+  "service": "sling-scheduling",
   "checks": {
     "sling": { "status": "ok", "durationMs": 35 },
     "caspio": { "status": "ok", "durationMs": 72 }
@@ -45,7 +48,7 @@ Response (degraded):
 {
   "requestId": "...",
   "summary": "degraded",
-  "service": "sling-scheduler-api",
+  "service": "sling-scheduling",
   "checks": {
     "sling": { "status": "ok", "durationMs": 30 },
     "caspio": {

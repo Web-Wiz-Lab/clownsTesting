@@ -13,7 +13,7 @@ on:
 env:
   PROJECT_ID: sling-scheduler
   REGION: us-east1
-  SERVICE_NAME: sling-scheduler-api
+  SERVICE_NAME: sling-scheduling
 
 jobs:
   deploy:
@@ -34,6 +34,17 @@ jobs:
 
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
+
+      - name: Verify canonical Cloud Run service exists
+        run: |
+          if ! gcloud run services describe "$SERVICE_NAME" \
+            --region "$REGION" \
+            --project "$PROJECT_ID" >/dev/null 2>&1; then
+            echo "::error::Cloud Run service '$SERVICE_NAME' does not exist in $PROJECT_ID/$REGION."
+            echo "::error::Failing to prevent accidental creation of a drifted service."
+            echo "::error::If intentional migration is needed, update canonical config + docs first."
+            exit 1
+          fi
 
       - name: Deploy to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v2

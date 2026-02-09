@@ -6,7 +6,7 @@ set -euo pipefail
 
 PROJECT_ID="${PROJECT_ID:-sling-scheduler}"
 REGION="${REGION:-us-east1}"
-SERVICE_NAME="${SERVICE_NAME:-sling-scheduler-api}"
+SERVICE_NAME="${SERVICE_NAME:-sling-scheduling}"
 NETLIFY_URL="${NETLIFY_URL:-https://sling-scheduler.netlify.app}"
 
 SLING_CALENDAR_ID="${SLING_CALENDAR_ID:-7858}"
