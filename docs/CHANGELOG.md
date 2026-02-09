@@ -58,3 +58,19 @@ Use newest-first entries and keep each section brief and concrete.
   - Replace process-local bulk idempotency cache with shared store (Redis or Firestore).
   - Add Caspio timeout/retry parity with Sling client.
   - Add compensating worker for rollback reconciliation failures.
+
+## 2026-02-09
+- Scope:
+  - Fixed Cloud Run service-name drift and added deploy guardrails to prevent duplicate service creation.
+- Completed:
+  - Canonicalized Cloud Run deploy target to `sling-scheduling` in `.github/workflows/deploy-cloud-run.yml`.
+  - Added pre-deploy check that fails workflow if canonical service is missing.
+  - Updated infra script defaults to `sling-scheduling` in `infra/cloudrun/deploy.sh` and `infra/cloudrun/set-runtime-config.sh`.
+  - Replaced hardcoded API service labels with runtime-derived value (`SERVICE_NAME` -> `K_SERVICE` -> fallback `sling-scheduling`).
+  - Updated API route tests and docs for consistent service naming.
+  - Converted `docs/CLOUD_RUN_SERVICE_DRIFT_2026-02-07.md` into an ongoing incident report with decommission checklist.
+- Deploy/Config:
+  - Canonical Cloud Run API service is `sling-scheduling`.
+  - Duplicate `sling-scheduler-api` can be deleted after final pre-delete validation in incident report.
+- Validation:
+  - `services/api` test suite passing (`npm test`, 4/4).
