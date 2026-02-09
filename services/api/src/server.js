@@ -7,31 +7,49 @@ import { createErrorReporterClient } from './clients/error-reporter.js';
 import { createIdempotencyStore } from './middleware/idempotency.js';
 import { createRequestHandler } from './app.js';
 
-const env = loadEnv();
-const slingClient = createSlingClient(env);
-const caspioClient = createCaspioClient(env);
-const errorReporterClient = createErrorReporterClient(env);
-const idempotencyStore = await createIdempotencyStore(env);
+try {
+  console.log(JSON.stringify({ level: 'info', msg: 'starting_server', step: 'load_env' }));
+  const env = loadEnv();
 
-const handler = createRequestHandler({
-  env,
-  slingClient,
-  caspioClient,
-  errorReporterClient,
-  idempotencyStore
-});
-const server = http.createServer((req, res) => {
-  handler(req, res);
-});
+  console.log(JSON.stringify({ level: 'info', msg: 'starting_server', step: 'create_clients' }));
+  const slingClient = createSlingClient(env);
+  const caspioClient = createCaspioClient(env);
+  const errorReporterClient = createErrorReporterClient(env);
 
-server.listen(env.port, () => {
-  console.log(
+  console.log(JSON.stringify({ level: 'info', msg: 'starting_server', step: 'create_idempotency_store', backend: env.idempotencyBackend }));
+  const idempotencyStore = await createIdempotencyStore(env);
+  console.log(JSON.stringify({ level: 'info', msg: 'starting_server', step: 'idempotency_store_ready' }));
+
+  const handler = createRequestHandler({
+    env,
+    slingClient,
+    caspioClient,
+    errorReporterClient,
+    idempotencyStore
+  });
+  const server = http.createServer((req, res) => {
+    handler(req, res);
+  });
+
+  server.listen(env.port, () => {
+    console.log(
+      JSON.stringify({
+        level: 'info',
+        msg: 'server_started',
+        port: env.port,
+        timezone: env.timezone,
+        nodeEnv: env.nodeEnv
+      })
+    );
+  });
+} catch (error) {
+  console.error(
     JSON.stringify({
-      level: 'info',
-      msg: 'server_started',
-      port: env.port,
-      timezone: env.timezone,
-      nodeEnv: env.nodeEnv
+      level: 'error',
+      msg: 'server_startup_failed',
+      error: error.message,
+      stack: error.stack
     })
   );
-});
+  process.exit(1);
+}
