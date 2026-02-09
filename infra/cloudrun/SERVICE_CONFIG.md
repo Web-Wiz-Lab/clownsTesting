@@ -16,3 +16,7 @@
 ## CORS
 - Allow only explicit origins through `CORS_ALLOWED_ORIGINS`.
 - Do not use wildcard in production.
+
+## Idempotency Latency Note
+- Firestore-backed idempotency adds write-path overhead by design.
+- If coordinator UX is sensitive to first-request delays, set min instances to `1` to reduce cold-start impact.

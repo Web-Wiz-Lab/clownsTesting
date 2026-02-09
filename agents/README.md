@@ -2,13 +2,15 @@
 
 This folder defines role-based agents to execute the rebuild systematically.
 
-## Sequence
-1. `00-orchestrator-agent.md`
-2. `01-architecture-agent.md`
-3. `02-backend-agent.md`
-4. `03-frontend-agent.md`
-5. `04-qa-agent.md`
-6. `05-devops-agent.md`
+## Current Files
+- `00-orchestrator-agent.md` (retained)
+- `STATUS.md` (retained)
+- `MASTER_HISTORY.md` (archived compact history for retired agent/handoff docs)
+- `handoffs/00-orchestrator-handoff.md` (retained)
+
+## Archived
+The retired specialist agent docs and their handoffs (`01-05` + `handoffs/01-05`) were compacted into:
+- `agents/MASTER_HISTORY.md`
 
 ## Ground Rules
 - Do not modify legacy files in `pastVersions/`.

@@ -1,3 +1,42 @@
+# Parallel Sub-Agents History
+
+This file archives the retired `parallel-subagents/` packet system.
+
+Archived on: 2026-02-09
+Source folder removed: `parallel-subagents/`
+
+## Archived Files
+- `parallel-subagents/README.md`
+- `parallel-subagents/resilience-quickwins/agent.yaml`
+- `parallel-subagents/resilience-quickwins/execution.md`
+- `parallel-subagents/resilience-quickwins/handoff-template.md`
+- `parallel-subagents/resilience-quickwins/handoff-api-readyz-lane.md`
+- `parallel-subagents/resilience-quickwins/handoff-ui-idempotency-lane.md`
+
+## Parallel Sub-Agent Packets (Original README)
+
+This folder defined task packets for specialized sub-agents that could run in parallel.
+
+Packet structure:
+1. `agent.yaml`
+- Machine-readable scope, constraints, dependencies, deliverables.
+2. `execution.md`
+- Step-by-step workflow.
+3. `handoff-template.md`
+- Required output format.
+
+Rules:
+- Keep scope narrow and explicitly bounded to listed files.
+- Include "why now" rationale.
+- Define out-of-scope boundaries.
+- Include concrete verification commands and pass/fail criteria.
+- Require written handoff with risks, tests, and changed files.
+
+## Archived Packet: `resilience-quickwins`
+
+### Agent Spec (`agent.yaml`)
+
+```yaml
 schema_version: 1
 agent_id: resilience-quickwins
 title: "Resilience Quick Wins Sub-Agent"
@@ -15,7 +54,7 @@ why_now:
   - "These are high-value, low-blast-radius changes that can run in parallel with UI refresh."
 
 primary_references:
-  - "docs/RESILIENCE_SELF_CORRECTION_FINDINGS.md"
+  - "docs/operations/RESILIENCE_SELF_CORRECTION_FINDINGS.md"
   - "app/ui/main.js"
   - "services/api/src/app.js"
   - "services/api/src/clients/sling.js"
@@ -84,3 +123,72 @@ deliverables:
   - "Code changes limited to allowed_edit_paths."
   - "Updated tests proving /readyz and idempotency header wiring."
   - "Completed handoff using handoff-template.md."
+```
+
+### Execution Playbook (`execution.md`)
+
+Summary:
+1. Read `docs/operations/RESILIENCE_SELF_CORRECTION_FINDINGS.md`.
+2. Implement UI `Idempotency-Key` wiring in `app/ui/main.js`.
+3. Implement `GET /readyz` in `services/api/src/app.js`.
+4. Add/adjust tests in `services/api/test/http-routes.test.js`.
+5. Run `cd services/api && npm test`.
+6. Produce handoff using template.
+
+Non-negotiables:
+- No edits outside allowed paths.
+- No scope creep into Redis/Firestore idempotency persistence.
+- No UI redesign in this lane.
+
+### Handoff Template (`handoff-template.md`)
+
+Template captured:
+- Outcome Summary (`completed | partial | blocked`)
+- Why this was done
+- Changes Made
+- Validation
+- Behavior Checks
+- Risks / Tradeoffs
+- Next Recommended Steps
+
+### Handoff: `api-readyz-lane`
+
+Outcome:
+- Status: `completed`
+- `GET /readyz`: `yes`
+
+Changes:
+- Files:
+  - `services/api/src/app.js`
+  - `services/api/test/http-routes.test.js`
+- Added `GET /readyz` with dependency-aware checks for Sling/Caspio.
+- Preserved `/healthz`.
+- Added healthy/degraded route tests.
+
+Validation:
+- `cd services/api && npm test`
+- Passed (at time of handoff): 4/4 test files.
+
+Risk note:
+- Readiness checks validate reachability, not full synthetic transactions.
+
+### Handoff: `ui-idempotency-lane`
+
+Outcome:
+- Status: `completed`
+- `Idempotency-Key on writes`: `yes`
+
+Changes:
+- File:
+  - `app/ui/main.js`
+- Added key generation + route/method-based key attachment for:
+  - `POST /api/shifts/bulk`
+  - `PUT /api/shifts/:occurrenceId`
+- Preserved `Content-Type` and `X-Request-Id`.
+
+Validation:
+- `cd services/api && npm test`
+- Passed at time of handoff.
+
+Risk note:
+- Client-side idempotency alone does not solve cross-instance dedupe.

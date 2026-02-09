@@ -7,6 +7,8 @@ This repository contains the rebuilt Sling scheduling workflow with clear separa
 
 This file is the single source of truth for setup, deployment, debugging, and future maintenance.
 
+For AI session onboarding, use `SOURCE_OF_TRUTH.md` first (session stop log + full markdown map), then return here for operational detail.
+
 ## Current Production State
 
 - UI URL: `https://sling-scheduler.netlify.app`
@@ -18,6 +20,7 @@ This file is the single source of truth for setup, deployment, debugging, and fu
   - Single occurrence updates only.
   - Team updates are atomic (2 staff in a team update together or rollback together).
   - Edit All allows partial success across teams (one failed team does not block others).
+  - Idempotency records are persisted in Firestore and expire by TTL.
 
 ## Why This Architecture Exists
 
@@ -61,7 +64,7 @@ The rebuilt architecture solves this by:
 - `POST /api/shifts/bulk`
 - `POST /api/error-report`
 
-Detailed contract: `docs/API_CONTRACT.md`
+Detailed contract: `docs/design/API_CONTRACT.md`
 
 ## Secrets and Configuration
 
@@ -87,16 +90,22 @@ Bound in Cloud Run as env var:
 ### 3. Cloud Run Environment Variables
 
 Required runtime vars:
-- `APP_TIMEZONE=America/New_York`
-- `SLING_BASE_URL=https://api.getsling.com`
 - `SLING_CALENDAR_ID=7858`
-- `SLING_MANAGER_USER_ID=21341367`
-- `CASPIO_BASE_URL=https://c0ebl152.caspio.com/rest/v2`
-- `CASPIO_TOKEN_WEBHOOK_URL=<make webhook that returns Caspio token>`
-- `ERROR_REPORT_WEBHOOK_URL=<zapier catch webhook for Slack alerting>`
-- `CORS_ALLOWED_ORIGINS=https://sling-scheduler.netlify.app`
+- `CASPIO_TOKEN_WEBHOOK_URL=https://hook.us1.make.com/gcvwhpnw7fr8ptbg8d3dop5qyhmz6uqr`
 - `REQUEST_TIMEOUT_MS=12000`
 - `RETRY_ATTEMPTS=2`
+- `APP_TIMEZONE=America/New_York`
+- `SLING_BASE_URL=https://api.getsling.com`
+- `SLING_MANAGER_USER_ID=21341367`
+- `CASPIO_BASE_URL=https://c0ebl152.caspio.com/rest/v2`
+- `CORS_ALLOWED_ORIGINS=https://sling-scheduler.netlify.app`
+- `ERROR_REPORT_WEBHOOK_URL=https://hooks.zapier.com/hooks/catch/18732682/ueuyn1t/`
+- `READINESS_CACHE_MS=60000`
+- `IDEMPOTENCY_BACKEND=firestore`
+- `IDEMPOTENCY_COLLECTION=idempotency_records`
+- `IDEMPOTENCY_PENDING_TTL_SECONDS=120`
+- `IDEMPOTENCY_TTL_SECONDS=600`
+- `IDEMPOTENCY_DATABASE_ID=sling-scheduler` (required in this project because Firestore DB is not `(default)`)
 
 ## Deploy Paths
 
@@ -110,15 +119,34 @@ What it does:
 
 ### API Deploy (Cloud Run)
 
-Two options:
+Canonical option:
 
-1. GitHub Actions (preferred once IAM is stable)
+1. GitHub Actions (required for normal operations)
 - Workflow: `.github/workflows/deploy-cloud-run.yml`
 - Uses Workload Identity Federation.
 
-2. Manual Cloud Console deploy (currently used in production)
-- Create/Update service from GitHub source (`services/api` with Dockerfile).
-- Configure vars and secret in Cloud Run UI.
+Emergency-only option:
+
+2. Manual Cloud Console deploy (use only for urgent rollback/hotfix)
+- If used, document the reason and immediately return to GitHub Actions as the single deploy path.
+
+## Cloud Run Deployment Authority (Critical)
+
+To prevent two revisions on every commit and accidental traffic routing to the wrong revision:
+- Use exactly one API deploy path: GitHub Actions.
+- In Cloud Run `sling-scheduling`, disable source-based auto deploy triggers.
+- In Cloud Build, disable triggers that deploy this service from the same repo.
+- Do not keep both GitHub Actions and Cloud Console source deploy active at the same time.
+
+Expected result after each API commit:
+- One new revision created by `github-deployer@sling-scheduler.iam.gserviceaccount.com`.
+- No second revision created by `89502226654-compute@developer.gserviceaccount.com`.
+
+## Revision Traffic Policy
+
+- Do not use "Send all traffic to latest revision" if more than one deploy pipeline is active.
+- Route traffic explicitly to the validated revision only.
+- Keep production at `100%` on one known-good revision unless intentionally canarying.
 
 ## Caspio Integration
 
@@ -157,6 +185,7 @@ Current test suites:
 - `test/updates.test.js`
 - `test/http-routes.test.js`
 - `test/caspio-client.test.js`
+- `test/idempotency.test.js`
 
 ## Operational Debugging Playbook
 
@@ -218,6 +247,16 @@ gcloud run services logs read sling-scheduling \
   - Check `POST /api/error-report` returns `summary: ok`.
   - Verify Zapier Zap is enabled and webhook URL is current.
 
+7. `500` on write routes after enabling Firestore idempotency
+- Symptom: UI shows unexpected error with `requestId`; Cloud Run requests log shows `500` on `POST /api/shifts/bulk` or `PUT /api/shifts/...`.
+- Common cause in this project: Firestore database is `sling-scheduler`, but `IDEMPOTENCY_DATABASE_ID` is missing.
+- Fix: set `IDEMPOTENCY_DATABASE_ID=sling-scheduler` on the serving revision.
+
+8. Two API revisions appear for each commit
+- Symptom: one revision deployed by `github-deployer@...` and another by `...compute@developer.gserviceaccount.com`.
+- Cause: dual deploy pipelines (GitHub Actions + Cloud Run/Cloud Build trigger).
+- Fix: disable the non-canonical deploy trigger path and keep GitHub Actions as single deployment authority.
+
 ## Recurrence Rules and Single-Occurrence Policy
 
 Important design rule:
@@ -253,13 +292,13 @@ Before making changes:
 
 ## Additional Documentation
 
-- `docs/ARCHITECTURE.md`
-- `docs/API_CONTRACT.md`
-- `docs/CHANGELOG.md`
-- `docs/CI_CD.md`
-- `docs/GCP_SETUP.md`
-- `docs/NETLIFY_SETUP.md`
-- `docs/HOSTING_STRATEGY.md`
+- `docs/design/ARCHITECTURE.md`
+- `docs/design/API_CONTRACT.md`
+- `docs/operations/CHANGELOG.md`
+- `docs/operations/CI_CD.md`
+- `docs/operations/GCP_SETUP.md`
+- `docs/operations/NETLIFY_SETUP.md`
+- `docs/design/HOSTING_STRATEGY.md`
 
 ## Session Handoff (2026-02-06)
 
@@ -281,6 +320,7 @@ Where work stopped / next quick verification after any deploy:
 
 When assisting on this project:
 - Treat this README as canonical operations documentation.
+- Preserve single deployment authority (GitHub Actions) unless user explicitly requests an emergency manual deploy.
 - Preserve single-occurrence update behavior.
 - Do not re-introduce browser direct calls to Sling.
 - Include `requestId` in debugging steps and incident reports.

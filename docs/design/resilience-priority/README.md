@@ -6,10 +6,10 @@ This folder contains focused planning docs for the current top-priority resilien
 
 ## Documents
 
-1. `docs/resilience-priority/01_SHARED_IDEMPOTENCY_STORE.md`
-2. `docs/resilience-priority/02_ROLLBACK_COMPENSATING_WORKER.md`
-3. `docs/resilience-priority/03_CASPIO_TIMEOUT_RETRY_PARITY.md`
-4. `docs/resilience-priority/04_PUT_IDEMPOTENCY_MISMATCH.md`
+1. `docs/design/resilience-priority/01_SHARED_IDEMPOTENCY_STORE.md`
+2. `docs/design/resilience-priority/02_ROLLBACK_COMPENSATING_WORKER.md`
+3. `docs/design/resilience-priority/03_CASPIO_TIMEOUT_RETRY_PARITY.md`
+4. `docs/design/resilience-priority/04_PUT_IDEMPOTENCY_MISMATCH.md`
 
 ## Suggested Execution Order
 
@@ -24,3 +24,4 @@ This folder contains focused planning docs for the current top-priority resilien
 - `03_CASPIO_TIMEOUT_RETRY_PARITY.md` can be delivered independently.
 - `04_PUT_IDEMPOTENCY_MISMATCH.md` is best done with `01_SHARED_IDEMPOTENCY_STORE.md`.
 - `02_ROLLBACK_COMPENSATING_WORKER.md` introduces queue/worker architecture and should follow infra decisions.
+- Some sections in these files are historical pre-implementation notes; refer to `README.md`, `docs/operations/GCP_SETUP.md`, and `infra/cloudrun/README.md` for current operational truth.

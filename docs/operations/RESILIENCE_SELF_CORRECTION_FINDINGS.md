@@ -1,7 +1,7 @@
 # Resilience and Self-Correction Findings
 
 Date: 2026-02-09  
-Scope reviewed: current API/UI codebase, `docs/CHANGELOG.md`, and related resilience/ops docs.
+Scope reviewed: current API/UI codebase, `docs/operations/CHANGELOG.md`, and related resilience/ops docs.
 
 ## Current status snapshot
 
@@ -44,7 +44,7 @@ Shared Firestore-backed idempotency for write routes is now implemented; rollbac
 - Canonical service name is enforced as `sling-scheduling`.
 
 7. Validation status remains green.
-- Verified locally on 2026-02-09: `npm test` in `services/api` passed (`4/4`).
+- Verified locally on 2026-02-09: `npm test` in `services/api` passed (`5/5`).
 
 ## Still open (high priority)
 
@@ -66,8 +66,9 @@ Shared Firestore-backed idempotency for write routes is now implemented; rollbac
 - Current telemetry includes structured API logs and error-report forwarding.
 - Formal resilience KPIs/alerts (rollback recovery success rate, dependency SLO, retry exhaustion thresholds) are still not defined in-repo.
 
-5. Documentation consistency needs one cleanup pass.
-- `docs/CHANGELOG.md` (2026-02-09 entry) still says duplicate service `sling-scheduler-api` "can be deleted," while `docs/INCIDENT_REPORT.md` states it was already deleted.
+5. Deployment authority still needs strict enforcement in runtime operations.
+- GitHub Actions is the canonical deploy path, but any active Cloud Run source/Cloud Build trigger can still create competing revisions.
+- Keep one automatic deploy writer for `sling-scheduling` and route traffic explicitly to validated revisions.
 
 ## Updated recommended implementation order
 

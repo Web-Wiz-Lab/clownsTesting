@@ -1,5 +1,16 @@
 # Agent Execution Status
 
+Archive note:
+- Retired specialist agent docs and handoffs (`01-05`) were compacted into `agents/MASTER_HISTORY.md`.
+- This status file is retained as a historical checkpoint.
+- Plenty of implementation and production-ops work happened after this checkpoint.
+- Do not treat this file as the current project state; use up-to-date docs instead:
+  - `README.md`
+  - `docs/operations/CHANGELOG.md`
+  - `docs/operations/INCIDENT_REPORT.md`
+  - `docs/operations/GCP_SETUP.md`
+  - `infra/cloudrun/README.md`
+
 ## 00 Orchestrator Agent
 - Status: completed (iteration 5)
 - Scope: sequencing and quality gates across architecture, backend, frontend, QA, and DevOps.
@@ -9,8 +20,8 @@
 - Status: completed
 - Outputs:
   - `IMPLEMENTATION_PLAN.md`
-  - `docs/ARCHITECTURE.md`
-  - `docs/API_CONTRACT.md`
+  - `docs/design/ARCHITECTURE.md`
+  - `docs/design/API_CONTRACT.md`
 - Notes: boundaries and API contract frozen for current iteration.
 
 ## 02 Backend Agent
@@ -19,7 +30,7 @@
   - `services/api/src/*`
   - recurrence-safe single-occurrence update logic
   - bulk partial-success handling
-  - idempotency key cache for bulk requests
+  - shared idempotency controls for `POST /api/shifts/bulk` and `PUT /api/shifts/:occurrenceId` (`memory` or `firestore`)
   - request-handler factory (`src/app.js`) for route-level testing
 - Next: integration smoke tests against real env.
 
@@ -51,9 +62,9 @@
   - `.github/workflows/deploy-cloud-run.yml`
   - `.github/workflows/deploy-ui-netlify.yml`
   - `netlify.toml`
-  - `docs/CI_CD.md`
-  - `docs/GCP_SETUP.md`
-  - `docs/NETLIFY_SETUP.md`
+  - `docs/operations/CI_CD.md`
+  - `docs/operations/GCP_SETUP.md`
+  - `docs/operations/NETLIFY_SETUP.md`
   - `infra/cloudrun/setup-github-wif.sh`
   - `infra/cloudrun/set-runtime-config.sh`
-- Next: deploy once GitHub secrets for GCP and Netlify are configured.
+- Next: keep GitHub Actions as single deployment authority and avoid duplicate deploy triggers in Cloud Run/Cloud Build.

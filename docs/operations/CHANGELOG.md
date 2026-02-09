@@ -40,7 +40,7 @@ Use newest-first entries and keep each section brief and concrete.
   - Live trigger to `/api/error-report` returned `summary: ok`, `data.triggered: true`, `webhookStatus: 200`.
 - Open/Next:
   - After any future deploy, trigger one controlled error and confirm UI message + Slack notification still work.
-  - Keep `README.md` and `docs/API_CONTRACT.md` aligned with endpoint behavior changes.
+  - Keep `README.md` and `docs/design/API_CONTRACT.md` aligned with endpoint behavior changes.
 
 ## 2026-02-07
 - Scope:
@@ -74,6 +74,9 @@ Use newest-first entries and keep each section brief and concrete.
   - Enforced idempotency reserve/replay semantics on both `POST /api/shifts/bulk` and `PUT /api/shifts/:occurrenceId`.
   - Added deterministic fingerprint conflict handling (`IDEMPOTENCY_KEY_REUSED`) and in-progress handling (`IDEMPOTENCY_IN_PROGRESS`).
   - Added idempotency-focused tests for replay/conflict/in-progress and route parity between POST/PUT.
+  - Fixed Cloud Run API Dockerfile to install runtime dependencies and fail fast if Firestore import is unavailable.
+  - Added explicit Firestore database targeting support via `IDEMPOTENCY_DATABASE_ID` for projects not using `(default)` database.
+  - Updated operations docs to enforce single deployment authority and explicit traffic routing policy.
 - Deploy/Config:
   - Canonical Cloud Run API service is `sling-scheduling`.
   - Duplicate `sling-scheduler-api` was deleted; incident report now tracks guardrails and prevention.
@@ -82,6 +85,7 @@ Use newest-first entries and keep each section brief and concrete.
     - `IDEMPOTENCY_COLLECTION=idempotency_records`
     - `IDEMPOTENCY_PENDING_TTL_SECONDS=120`
     - `IDEMPOTENCY_TTL_SECONDS=600`
+    - `IDEMPOTENCY_DATABASE_ID=sling-scheduler` (required for this project)
 - Validation:
   - `services/api` test suite passing (`npm test`, 5/5).
 - Open/Next:

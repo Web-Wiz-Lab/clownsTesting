@@ -22,6 +22,11 @@ echo -n 'CASPIO_STATIC_TOKEN_OR_EMPTY' | gcloud secrets create caspio-access-tok
 ./infra/cloudrun/deploy.sh
 ```
 
+Important:
+- Keep GitHub Actions as the only automatic API deploy path for `sling-scheduling`.
+- Disable Cloud Run source deploy triggers / Cloud Build deploy triggers for this same service.
+- Dual deploy paths can create two revisions per commit and cause accidental traffic shift.
+
 ## 4. Set Runtime Environment
 Use Cloud Run `Variables & Secrets`:
 - `APP_TIMEZONE=America/New_York`
@@ -38,11 +43,15 @@ Use Cloud Run `Variables & Secrets`:
 - `IDEMPOTENCY_COLLECTION=idempotency_records`
 - `IDEMPOTENCY_PENDING_TTL_SECONDS=120`
 - `IDEMPOTENCY_TTL_SECONDS=600`
-- `IDEMPOTENCY_DATABASE_ID=<database-id>` (optional; use if not `(default)`)
+- `IDEMPOTENCY_DATABASE_ID=sling-scheduler` (required for this project; Firestore DB is not `(default)`)
 
 Attach secrets:
 - `SLING_API_TOKEN` <- `sling-api-token`
 - `CASPIO_ACCESS_TOKEN` <- `caspio-access-token` (optional if webhook is used)
+
+Runtime IAM:
+- Cloud Run runtime service account must have `roles/secretmanager.secretAccessor`.
+- If using Firestore idempotency backend, runtime service account must have `roles/datastore.user`.
 
 ## 5. Smoke Tests
 ```bash
@@ -55,3 +64,7 @@ Cloud Run keeps revision history:
 1. Open Cloud Run service.
 2. Select previous healthy revision.
 3. Route 100% traffic to that revision.
+
+Traffic policy:
+- Route traffic to a validated revision explicitly.
+- Avoid "send all traffic to latest revision" unless exactly one deploy pipeline is active.

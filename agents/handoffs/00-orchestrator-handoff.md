@@ -18,8 +18,4 @@
 ## Files changed
 - `agents/STATUS.md`
 - `agents/handoffs/00-orchestrator-handoff.md`
-- `agents/handoffs/01-architecture-handoff.md`
-- `agents/handoffs/02-backend-handoff.md`
-- `agents/handoffs/03-frontend-handoff.md`
-- `agents/handoffs/04-qa-handoff.md`
-- `agents/handoffs/05-devops-handoff.md`
+- `agents/MASTER_HISTORY.md` (archive of retired `01-05` agent/handoff files)

@@ -26,3 +26,7 @@ Add Caspio origin only if Caspio pages call API directly:
 - UI framework can evolve independently.
 - Backend remains stable integration layer.
 - Operational debugging stays centralized in Cloud Run logs.
+
+## Deployment Authority
+- Keep API deployments single-writer (GitHub Actions) for `sling-scheduling`.
+- Disable duplicate source/trigger-based deploy paths in Cloud Run/Cloud Build to avoid competing revisions.

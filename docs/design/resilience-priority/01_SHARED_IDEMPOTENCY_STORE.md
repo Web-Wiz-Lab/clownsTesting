@@ -3,6 +3,13 @@
 Last updated: 2026-02-09  
 Priority: P0
 
+Status note (current):
+- This workstream has been implemented in the main codebase.
+- Historical sections below describe pre-implementation state/planning context.
+- Current runtime supports shared idempotency backend (`memory` or `firestore`) for:
+  - `POST /api/shifts/bulk`
+  - `PUT /api/shifts/:occurrenceId`
+
 ## Implementation Decisions (Locked)
 
 - Backend: Firestore (project `sling-scheduler`)
