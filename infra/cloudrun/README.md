@@ -38,6 +38,7 @@ Use Cloud Run `Variables & Secrets`:
 - `IDEMPOTENCY_COLLECTION=idempotency_records`
 - `IDEMPOTENCY_PENDING_TTL_SECONDS=120`
 - `IDEMPOTENCY_TTL_SECONDS=600`
+- `IDEMPOTENCY_DATABASE_ID=<database-id>` (optional; use if not `(default)`)
 
 Attach secrets:
 - `SLING_API_TOKEN` <- `sling-api-token`

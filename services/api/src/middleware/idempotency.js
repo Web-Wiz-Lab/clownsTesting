@@ -131,6 +131,7 @@ function timestampToMs(value) {
 
 async function createFirestoreIdempotencyStore({
   projectId,
+  databaseId,
   collection,
   completedTtlSeconds,
   pendingTtlSeconds
@@ -142,7 +143,17 @@ async function createFirestoreIdempotencyStore({
     throw new Error('Firestore SDK is unavailable for idempotency backend');
   }
 
-  const db = projectId ? new Firestore({ projectId }) : new Firestore();
+  const firestoreOptions = {};
+  if (projectId) {
+    firestoreOptions.projectId = projectId;
+  }
+  if (databaseId) {
+    firestoreOptions.databaseId = databaseId;
+  }
+  const db =
+    Object.keys(firestoreOptions).length > 0
+      ? new Firestore(firestoreOptions)
+      : new Firestore();
   const ref = db.collection(collection);
 
   return {
@@ -238,6 +249,7 @@ export async function createIdempotencyStore(env = {}) {
   if (backend === 'firestore') {
     return createFirestoreIdempotencyStore({
       projectId: env.idempotencyProjectId || '',
+      databaseId: env.idempotencyDatabaseId || '',
       collection: env.idempotencyCollection || DEFAULT_COLLECTION,
       completedTtlSeconds,
       pendingTtlSeconds

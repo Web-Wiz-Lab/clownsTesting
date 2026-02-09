@@ -57,11 +57,13 @@ This sets:
 - `IDEMPOTENCY_COLLECTION=idempotency_records`
 - `IDEMPOTENCY_PENDING_TTL_SECONDS=120`
 - `IDEMPOTENCY_TTL_SECONDS=600`
+- `IDEMPOTENCY_DATABASE_ID=<database-id>` (set when Firestore DB is not `(default)`)
 - Sling/Caspio envs
 - Secret binding for `SLING_API_TOKEN`
 
 Firestore notes:
 - Ensure Firestore is enabled in project `sling-scheduler`.
+- If using a non-default Firestore database, set `IDEMPOTENCY_DATABASE_ID` to that database ID.
 - Ensure the Cloud Run runtime service account has Firestore access (for example `roles/datastore.user`).
 - Configure a Firestore TTL policy on `idempotency_records.expiresAt` so records expire automatically.
 
