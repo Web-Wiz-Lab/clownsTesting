@@ -1,5 +1,6 @@
 [build]
-  publish = "app/ui/dist"
+  base = "app/ui"
+  publish = "dist"
 
 [[headers]]
   for = "/*"

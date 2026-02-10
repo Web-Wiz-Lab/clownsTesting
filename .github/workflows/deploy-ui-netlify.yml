@@ -23,6 +23,15 @@ jobs:
         with:
           node-version: 20
 
+      - name: Validate API base URL secret
+        run: |
+          if [ -z "$SCHEDULER_API_BASE_URL" ]; then
+            echo "::error::Missing SCHEDULER_API_BASE_URL secret."
+            exit 1
+          fi
+        env:
+          SCHEDULER_API_BASE_URL: ${{ secrets.SCHEDULER_API_BASE_URL }}
+
       - name: Install UI dependencies
         run: npm ci
         working-directory: app/ui

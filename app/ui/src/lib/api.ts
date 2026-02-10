@@ -1,4 +1,17 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+const DEFAULT_API_BASE = 'https://sling-scheduling-89502226654.us-east1.run.app';
+
+function resolveApiBase(): string {
+  const envBase = import.meta.env.VITE_API_BASE_URL || '';
+  const runtimeBase =
+    typeof window !== 'undefined'
+      ? (window as unknown as { __SCHEDULER_API_BASE__?: string }).__SCHEDULER_API_BASE__ || ''
+      : '';
+
+  const value = envBase || runtimeBase || DEFAULT_API_BASE;
+  return value.replace(/\/+$/, '');
+}
+
+const API_BASE = resolveApiBase();
 
 export function buildRequestId(): string {
   if (window.crypto && window.crypto.randomUUID) {
