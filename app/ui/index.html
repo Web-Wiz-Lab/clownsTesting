@@ -1,65 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sling Schedule Manager</title>
-    <link rel="stylesheet" href="./styles.css">
-</head>
-<body>
-    <div class="container">
-        <h1>Sling Schedule Manager</h1>
-
-        <div class="search-section">
-            <label for="dateInput">Select Date:</label>
-            <input type="date" id="dateInput" required>
-            <button id="searchBtn" onclick="searchSchedule()">Search</button>
-        </div>
-
-        <div class="loading" id="loadingIndicator">Loading shifts...</div>
-        <div class="error" id="errorMessage"></div>
-        <div class="success" id="successMessage"></div>
-        <div class="warning" id="warningMessage">
-            <div class="warning-text" onclick="toggleUnmatchedShifts()" style="cursor: pointer;">
-                <span id="warningText"></span>
-                <span class="warning-arrow" id="warningArrow">▼</span>
-            </div>
-            <div class="unmatched-shifts" id="unmatchedShiftsContainer"></div>
-        </div>
-        <div class="no-results" id="noResults">No shifts found for this date.</div>
-
-        <div class="bulk-controls" id="bulkControls" style="display: none;">
-            <button class="btn-edit-all" id="editAllBtn" onclick="enterBulkEditMode()">Edit All</button>
-            <button class="btn-update-all" id="updateAllBtn" onclick="updateAllTeams()" style="display: none;">Update All</button>
-            <button class="btn-cancel-all" id="cancelAllBtn" onclick="cancelBulkEdit()" style="display: none;">Cancel</button>
-        </div>
-
-        <table id="resultsTable">
-            <thead>
-                <tr>
-                    <th>Team</th>
-                    <th>Main</th>
-                    <th>Assist</th>
-                    <th>Start</th>
-                    <th>End</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody id="tableBody"></tbody>
-        </table>
-    </div>
-
-    <div class="modal-overlay" id="modalOverlay">
-        <div class="modal-content" id="modalContent">
-            <h3 id="modalMessage">Processing Request</h3>
-            <div class="loader" id="modalLoader"></div>
-            <div class="success-icon" id="modalSuccess" style="display: none;">✓</div>
-            <div class="error-icon" id="modalError" style="display: none;">✕</div>
-        </div>
-    </div>
-
-    <script src="./config.js"></script>
-    <script src="./main.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Your Team Schedule ☀️</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
