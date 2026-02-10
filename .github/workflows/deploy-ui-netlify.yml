@@ -18,16 +18,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Inject API base URL
-        run: |
-          cat > app/ui/config.js <<'EOCFG'
-          window.__SCHEDULER_API_BASE__ = '${{ secrets.SCHEDULER_API_BASE_URL }}';
-          EOCFG
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
+
+      - name: Install UI dependencies
+        run: npm ci
+        working-directory: app/ui
+
+      - name: Build UI
+        run: npm run build
+        working-directory: app/ui
+        env:
+          VITE_API_BASE_URL: ${{ secrets.SCHEDULER_API_BASE_URL }}
 
       - name: Install Netlify CLI
         run: npm install -g netlify-cli
@@ -35,7 +39,7 @@ jobs:
       - name: Deploy to Netlify (production)
         run: |
           netlify deploy \
-            --dir app/ui \
+            --dir app/ui/dist \
             --prod \
             --site "$NETLIFY_SITE_ID" \
             --message "GitHub Actions deploy: ${GITHUB_SHA}"
