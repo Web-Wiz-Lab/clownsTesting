@@ -11,6 +11,8 @@ interface TeamRowProps {
   team: TeamData;
   editing: boolean;
   bulkEditMode: boolean;
+  bulkValues?: EditValues;
+  onBulkValuesChange?: (values: EditValues) => void;
   onEdit: () => void;
   onCancel: () => void;
   onUpdate: (values: EditValues) => void;
@@ -21,6 +23,8 @@ export function TeamRow({
   team,
   editing,
   bulkEditMode,
+  bulkValues,
+  onBulkValuesChange,
   onEdit,
   onCancel,
   onUpdate,
@@ -35,40 +39,60 @@ export function TeamRow({
   const [status, setStatus] = useState<'published' | 'planning'>(originalStatus);
   const [updating, setUpdating] = useState(false);
 
-  // Reset values when editing starts
+  // Reset values when single-team editing starts
   useEffect(() => {
-    if (editing) {
+    if (editing && !bulkEditMode) {
       setStartTime(originalStart);
       setEndTime(originalEnd);
       setStatus(originalStatus);
     }
-  }, [editing, originalStart, originalEnd, originalStatus]);
+  }, [editing, bulkEditMode, originalStart, originalEnd, originalStatus]);
+
+  const effectiveStart = bulkEditMode ? (bulkValues?.start || originalStart) : startTime;
+  const effectiveEnd = bulkEditMode ? (bulkValues?.end || originalEnd) : endTime;
+  const effectiveStatus = bulkEditMode ? (bulkValues?.status || originalStatus) : status;
 
   const hasChanges =
-    startTime !== originalStart || endTime !== originalEnd || status !== originalStatus;
+    effectiveStart !== originalStart ||
+    effectiveEnd !== originalEnd ||
+    effectiveStatus !== originalStatus;
 
   const handleUpdate = async () => {
     setUpdating(true);
-    await onUpdate({ start: startTime, end: endTime, status });
+    await onUpdate({ start: effectiveStart, end: effectiveEnd, status: effectiveStatus });
     setUpdating(false);
   };
 
   const handleStartTimeChange = (newStart: string) => {
-    setStartTime(newStart);
+    const baseEnd = bulkEditMode ? effectiveEnd : endTime;
+
+    let nextEnd = baseEnd;
     // Reset end time if it's now before or equal to start time
     const newStartMinutes = parseInt(newStart.split(':')[0]) * 60 + parseInt(newStart.split(':')[1]);
-    const endMinutes = parseInt(endTime.split(':')[0]) * 60 + parseInt(endTime.split(':')[1]);
+    const endMinutes = parseInt(baseEnd.split(':')[0]) * 60 + parseInt(baseEnd.split(':')[1]);
     if (endMinutes <= newStartMinutes) {
       // Set to 15 minutes after new start as default
       const newEndMinutes = newStartMinutes + 15;
       const newEndHours = Math.floor(newEndMinutes / 60);
       const newEndMins = newEndMinutes % 60;
       if (newEndHours < 24) {
-        setEndTime(
-          `${newEndHours.toString().padStart(2, '0')}:${newEndMins.toString().padStart(2, '0')}`
-        );
+        nextEnd = `${newEndHours.toString().padStart(2, '0')}:${newEndMins
+          .toString()
+          .padStart(2, '0')}`;
       }
     }
+
+    if (bulkEditMode) {
+      onBulkValuesChange?.({
+        start: newStart,
+        end: nextEnd,
+        status: effectiveStatus,
+      });
+      return;
+    }
+
+    setStartTime(newStart);
+    setEndTime(nextEnd);
   };
 
   if (!editing && !bulkEditMode) {
@@ -103,13 +127,42 @@ export function TeamRow({
       <TableCell>{team.mainName}</TableCell>
       <TableCell>{team.assistName}</TableCell>
       <TableCell>
-        <TimeSelect value={startTime} onChange={handleStartTimeChange} className="w-36" />
+        <TimeSelect value={effectiveStart} onChange={handleStartTimeChange} className="w-36" />
       </TableCell>
       <TableCell>
-        <TimeSelect value={endTime} onChange={setEndTime} minTime={startTime} className="w-36" />
+        <TimeSelect
+          value={effectiveEnd}
+          onChange={(value) => {
+            if (bulkEditMode) {
+              onBulkValuesChange?.({
+                start: effectiveStart,
+                end: value,
+                status: effectiveStatus,
+              });
+              return;
+            }
+            setEndTime(value);
+          }}
+          minTime={effectiveStart}
+          className="w-36"
+        />
       </TableCell>
       <TableCell>
-        <StatusSelect value={status} onChange={setStatus} className="w-36" />
+        <StatusSelect
+          value={effectiveStatus}
+          onChange={(value) => {
+            if (bulkEditMode) {
+              onBulkValuesChange?.({
+                start: effectiveStart,
+                end: effectiveEnd,
+                status: value,
+              });
+              return;
+            }
+            setStatus(value);
+          }}
+          className="w-36"
+        />
       </TableCell>
       <TableCell>
         {!bulkEditMode && (

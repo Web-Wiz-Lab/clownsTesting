@@ -254,6 +254,13 @@ export function SchedulePage() {
               teams={state.teams}
               editingTeam={state.editingTeam}
               bulkEditMode={state.bulkEditMode}
+              bulkEditedValues={bulkEditedValues}
+              onBulkValuesChange={(teamName, values) => {
+                setBulkEditedValues((prev) => ({
+                  ...prev,
+                  [teamName]: values,
+                }));
+              }}
               onEditTeam={actions.editTeam}
               onCancelTeamEdit={actions.cancelTeamEdit}
               onUpdateTeam={actions.updateTeam}
