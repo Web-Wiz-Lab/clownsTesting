@@ -10,6 +10,28 @@ Last updated: 2026-02-09
 
 #### 2026-02-09 (latest)
 - Completed:
+  - Merged frontend redesign work into the active branch:
+    - New UI stack in `app/ui` (React + Vite + Tailwind/shadcn).
+    - Prior static UI moved to `app/ui-backup` as historical reference.
+  - Verified quality gates on current state:
+    - API tests passing (`services/api`, `npm test`, `5/5`).
+    - UI type/lint/build checks passing (`app/ui`, `npm run lint`, `npm run build`).
+  - Hardened workflow behavior:
+    - `API CI` now runs on `main` pushes only.
+    - `Deploy API to Cloud Run` no longer triggers from docs-only edits under `infra/cloudrun`.
+  - Continued docs consistency cleanup:
+    - Runtime env/config truth remains centralized in `README.md`.
+- Current production guidance:
+  - Keep API deploys single-writer (GitHub Actions) and route traffic explicitly to validated revisions.
+  - For local UI testing with extra CORS origins, use a tagged test revision at `0%` traffic (do not split production traffic for UI-only testing).
+  - Set multiple CORS origins as one comma-separated `CORS_ALLOWED_ORIGINS` value.
+- Next recommended starting point for a new session:
+  - Check `docs/operations/CHANGELOG.md` newest entry and confirm intended commit scope.
+  - Confirm webhook/token rotation status for previously exposed credentials.
+  - Continue remaining resilience items (`docs/design/resilience-priority/03_CASPIO_TIMEOUT_RETRY_PARITY.md`, `docs/design/resilience-priority/02_ROLLBACK_COMPENSATING_WORKER.md`).
+
+#### 2026-02-09
+- Completed:
   - Resolved Firestore idempotency rollout blockers:
     - Docker image now installs runtime dependencies for API.
     - Firestore non-default DB support added via `IDEMPOTENCY_DATABASE_ID`.

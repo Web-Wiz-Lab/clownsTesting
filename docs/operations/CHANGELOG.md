@@ -22,6 +22,26 @@ Do not treat this file as runtime configuration truth; use `README.md` for curre
   - Remaining task 2
 ```
 
+## 2026-02-09
+- Scope:
+  - Merged the UI redesign workstream and validated both backend and frontend checks.
+  - Tightened workflow trigger rules to reduce unintended runs/deploys.
+  - Continued doc hardening to keep runtime config truth centralized.
+- Completed:
+  - New React/Vite/Tailwind/shadcn UI is in `app/ui`; prior static UI retained in `app/ui-backup` for historical reference.
+  - Updated `.github/workflows/api-ci.yml` to run only on `main` pushes.
+  - Narrowed `.github/workflows/deploy-cloud-run.yml` path filters so docs-only changes under `infra/cloudrun` do not trigger API deploys.
+  - Confirmed runtime env source-of-truth pattern remains `README.md` (ops docs reference it rather than duplicating full lists).
+- Deploy/Config:
+  - For local UI CORS testing, use a tagged Cloud Run revision at `0%` traffic and keep production at `100%` on a validated revision.
+  - `CORS_ALLOWED_ORIGINS` must be a single comma-separated env value (not multiple duplicated env keys).
+- Validation:
+  - API tests passing: `npm test` in `services/api` (`5/5`).
+  - UI checks passing: `npm run lint` and `npm run build` in `app/ui`.
+- Open/Next:
+  - Before final push/commit, confirm whether auxiliary files (`.claude/**`, `.mcp.json`, `temp-file.md`, screenshots, `app/ui/tsconfig.tsbuildinfo`) should remain in tracked history.
+  - Rotate/revoke previously exposed webhook/token credentials in external systems and resolve GitHub secret-scanning alerts.
+
 ## 2026-02-06
 - Scope:
   - Stabilized scheduling updates, improved user error messaging, and added automatic Slack escalation via Zapier.
