@@ -166,7 +166,7 @@ function toSuccess(index, result) {
   };
 }
 
-const CONCURRENCY = 4;
+const CONCURRENCY = 2;
 
 async function processFlatUpdates({ updates, slingClient, env, requestId }) {
   if (!Array.isArray(updates) || updates.length === 0) {

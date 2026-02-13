@@ -55,6 +55,19 @@ export function createSlingClient(env) {
             continue;
           }
 
+          console.error(
+            JSON.stringify({
+              level: 'error',
+              msg: 'sling_request_failed',
+              requestId,
+              method,
+              url,
+              status: response.status,
+              durationMs,
+              payload
+            })
+          );
+
           throw new ApiError('Sling request failed', {
             statusCode: response.status,
             code: 'SLING_REQUEST_FAILED',

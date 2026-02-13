@@ -28,7 +28,7 @@ function getApiErrorPayload(error: any): any | null {
 }
 
 function sanitizeForReport(value: any, depth: number = 0): any {
-  if (depth > 4) {
+  if (depth > 7) {
     return '[Truncated]';
   }
 

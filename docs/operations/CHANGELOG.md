@@ -22,6 +22,21 @@ Do not treat this file as runtime configuration truth; use `README.md` for curre
   - Remaining task 2
 ```
 
+## 2026-02-13
+- Scope:
+  - Observability and resilience fixes for incident `bd35292f` (partial bulk update failure on 2026-02-12).
+- Completed:
+  - **Rec #1 — Sling error logging:** Added `console.error` with structured JSON (`sling_request_failed`) in `services/api/src/clients/sling.js` before throwing `ApiError` on non-2xx responses. Logs `requestId`, `method`, `url`, `status`, `durationMs`, and `payload`. Failed Sling requests are now visible in Cloud Run logs.
+  - **Rec #2 — Report depth limit:** Increased `sanitizeForReport` depth from 4 to 7 in `app/ui/src/lib/errors.ts`. Sling error details (at depth 5) now survive truncation in Slack error reports.
+  - **Rec #3 — Reduce concurrency:** Changed `CONCURRENCY` from 4 to 2 in `services/api/src/routes/updates.js`. Halves peak concurrent Sling API calls as a precaution until the rate limiting hypothesis is confirmed or ruled out.
+- Deploy/Config:
+  - No new env vars. Concurrency is a code constant. Redeploy API and UI to activate.
+- Validation:
+  - API tests: 28/28 passing. UI lint clean, build successful.
+- Open/Next:
+  - Monitor next multi-team bulk edit for Sling error logs to confirm or rule out rate limiting.
+  - If rate limiting confirmed, consider stagger delays and/or env-configurable concurrency.
+
 ## 2026-02-12 (in progress)
 Main: `claude --resume 6b9bc99a-f281-417a-8492-85e8dd965aaf`
 Reviewer: `claude --resume a342c71c-5844-4f00-a199-bcce888fb39f`
