@@ -371,11 +371,56 @@ export async function reportErrorToOps({
     };
 
     const result = await apiRequest(ERROR_REPORT_PATH, 'POST', payload);
+    const triggered = result?.data?.triggered === true;
+
+    if (triggered) {
+      try {
+        localStorage.setItem(
+          'changelog_investigating',
+          JSON.stringify({
+            investigating: true,
+            timestamp: new Date().toISOString(),
+          })
+        );
+      } catch {
+        // localStorage may be unavailable (private browsing, storage full)
+      }
+    }
+
     return {
-      triggered: result?.data?.triggered === true,
+      triggered,
       requestId: result?.requestId || null,
     };
   } catch {
     return { triggered: false };
+  }
+}
+
+export function getInvestigatingFlag(): {
+  investigating: boolean;
+  timestamp: string;
+} | null {
+  try {
+    const raw = localStorage.getItem('changelog_investigating');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (
+      parsed &&
+      typeof parsed.investigating === 'boolean' &&
+      typeof parsed.timestamp === 'string'
+    ) {
+      return parsed;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearInvestigatingFlag(): void {
+  try {
+    localStorage.removeItem('changelog_investigating');
+  } catch {
+    // localStorage may be unavailable
   }
 }

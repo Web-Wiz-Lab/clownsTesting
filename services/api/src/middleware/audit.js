@@ -78,6 +78,20 @@ function createMemoryAuditStore() {
         timestamp: new Date(),
         auditWriteStatus: 'ok'
       });
+    },
+    async query({ limit = 20, cursor = null }) {
+      const sorted = [...entries].reverse();
+      let startIndex = 0;
+      if (cursor) {
+        const cursorIndex = sorted.findIndex((e, i) => String(i) === cursor);
+        startIndex = cursorIndex >= 0 ? cursorIndex : 0;
+      }
+      const page = sorted.slice(startIndex, startIndex + limit);
+      const hasMore = startIndex + limit < sorted.length;
+      return {
+        entries: page,
+        nextCursor: hasMore ? String(startIndex + limit) : null
+      };
     }
   };
 }
@@ -109,6 +123,25 @@ async function createFirestoreAuditStore(env) {
         timestamp: new Date(),
         auditWriteStatus: 'ok'
       });
+    },
+    async query({ limit = 20, cursor = null }) {
+      let q = ref.orderBy('timestamp', 'desc').limit(limit);
+      if (cursor) {
+        const cursorDoc = await ref.doc(cursor).get();
+        if (cursorDoc.exists) {
+          q = q.startAfter(cursorDoc);
+        }
+      }
+      const snapshot = await q.get();
+      const entries = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+      return {
+        entries,
+        nextCursor: entries.length === limit && lastDoc ? lastDoc.id : null
+      };
     }
   };
 }

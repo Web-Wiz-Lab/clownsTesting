@@ -188,6 +188,45 @@ test('withAuditLog still returns result when execute throws', async () => {
   assert.equal(store.entries.length, 0);
 });
 
+test('memory audit store query returns entries newest-first', async () => {
+  const store = await createAuditStore({ auditBackend: 'memory' });
+
+  await store.record({ requestId: 'req-1', method: 'PUT', path: '/api/shifts/a', statusCode: 200, payload: {}, durationMs: 10, outcome: 'success' });
+  await store.record({ requestId: 'req-2', method: 'POST', path: '/api/shifts/bulk', statusCode: 200, payload: {}, durationMs: 20, outcome: 'success' });
+  await store.record({ requestId: 'req-3', method: 'PUT', path: '/api/shifts/b', statusCode: 409, payload: {}, durationMs: 30, outcome: 'failure' });
+
+  const result = await store.query({ limit: 2 });
+
+  assert.equal(result.entries.length, 2);
+  assert.equal(result.entries[0].requestId, 'req-3');
+  assert.equal(result.entries[1].requestId, 'req-2');
+  assert.ok(result.nextCursor);
+});
+
+test('memory audit store query supports cursor pagination', async () => {
+  const store = await createAuditStore({ auditBackend: 'memory' });
+
+  await store.record({ requestId: 'req-1', method: 'PUT', path: '/a', statusCode: 200, payload: {}, durationMs: 10, outcome: 'success' });
+  await store.record({ requestId: 'req-2', method: 'PUT', path: '/b', statusCode: 200, payload: {}, durationMs: 20, outcome: 'success' });
+  await store.record({ requestId: 'req-3', method: 'PUT', path: '/c', statusCode: 200, payload: {}, durationMs: 30, outcome: 'success' });
+
+  const page1 = await store.query({ limit: 2 });
+  assert.equal(page1.entries.length, 2);
+  assert.equal(page1.entries[0].requestId, 'req-3');
+
+  const page2 = await store.query({ limit: 2, cursor: page1.nextCursor });
+  assert.equal(page2.entries.length, 1);
+  assert.equal(page2.entries[0].requestId, 'req-1');
+  assert.equal(page2.nextCursor, null);
+});
+
+test('memory audit store query returns empty when no entries', async () => {
+  const store = await createAuditStore({ auditBackend: 'memory' });
+  const result = await store.query({ limit: 10 });
+  assert.equal(result.entries.length, 0);
+  assert.equal(result.nextCursor, null);
+});
+
 import { Readable } from 'node:stream';
 import { createRequestHandler } from '../src/app.js';
 

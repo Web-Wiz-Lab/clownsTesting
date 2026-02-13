@@ -1,0 +1,25 @@
+[
+  {
+    "date": "2026-02-13",
+    "entries": [
+      "Improved how the system tracks and logs scheduling changes for faster issue resolution.",
+      "Optimized large schedule saves to be more reliable.",
+      "Added a new activity tracking system to record all scheduling changes."
+    ]
+  },
+  {
+    "date": "2026-02-12",
+    "entries": [
+      "Scheduling saves now process faster with improved performance.",
+      "Added safeguards to preserve your edits when a save partially succeeds.",
+      "Improved system resilience for more reliable schedule updates."
+    ]
+  },
+  {
+    "date": "2026-02-10",
+    "entries": [
+      "Fixed an issue where the app could briefly show a blank screen while loading schedule data.",
+      "Improved how the app connects to the scheduling service."
+    ]
+  }
+]

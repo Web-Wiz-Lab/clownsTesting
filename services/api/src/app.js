@@ -8,6 +8,7 @@ import { createAuditStore, deriveOutcome } from './middleware/audit.js';
 import { buildRequestContext } from './middleware/request-id.js';
 import { getPathAndQuery, readRequestBodySafely, sendJson } from './utils/http.js';
 import { handleGetSchedule } from './routes/schedule.js';
+import { handleGetAuditLog } from './routes/audit-log.js';
 import {
   normalizeSingleUpdateError,
   updateBulkOccurrences,
@@ -362,6 +363,16 @@ export function createRequestHandler({
           caspioClient,
           requestId,
           dateIso: date
+        });
+        sendJson(res, 200, payload, baseHeaders);
+        return;
+      }
+
+      if (req.method === 'GET' && path === '/api/audit-log') {
+        const payload = await handleGetAuditLog({
+          auditStorePromise,
+          query,
+          requestId
         });
         sendJson(res, 200, payload, baseHeaders);
         return;

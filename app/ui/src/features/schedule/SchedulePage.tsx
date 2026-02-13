@@ -1,18 +1,34 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useSchedule } from '@/hooks/use-schedule';
 import { SearchBar } from './SearchBar';
 import { TeamsTable } from './TeamsTable';
 import { UnmatchedBanner } from './UnmatchedBanner';
 import { BulkControls } from './BulkControls';
 import { OperationModal } from './OperationModal';
+import { ActivityDrawer } from '@/features/activity/ActivityDrawer';
+import { ChangelogDrawer } from '@/features/changelog/ChangelogDrawer';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { getTimeFromDateTime } from '@/lib/time';
+import { getInvestigatingFlag } from '@/lib/errors';
 import type { EditValues } from '@/types/schedule';
 import { Calendar, Users, AlertCircle, Sparkles, Coffee } from 'lucide-react';
 
 export function SchedulePage() {
   const [state, actions] = useSchedule();
   const [bulkEditedValues, setBulkEditedValues] = useState<Record<string, EditValues>>({});
+  const [investigating, setInvestigating] = useState(false);
+
+  // Check investigating flag on mount so the trigger button pulse is visible immediately
+  useEffect(() => {
+    const flag = getInvestigatingFlag();
+    if (flag !== null && flag.investigating === true) {
+      setInvestigating(true);
+    }
+  }, []);
+
+  const handleDismissInvestigating = useCallback(() => {
+    setInvestigating(false);
+  }, []);
 
   // Auto-load from URL parameter on mount
   useEffect(() => {
@@ -128,12 +144,23 @@ export function SchedulePage() {
       {/* Warm header section */}
       <div className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-accent/5 to-secondary/5 border-b border-border/50">
         <div className="container mx-auto px-4 py-12 max-w-6xl relative z-10">
-          {/* Friendly header */}
-          <div className="text-center mb-10 animate-bounce-in">
-            <div className="inline-flex items-center gap-2 mb-3 text-primary">
+          {/* Top bar with branding centered + drawer triggers pinned right */}
+          <div className="relative flex items-center justify-center mb-10 animate-bounce-in">
+            <div className="inline-flex items-center gap-2 text-primary">
               <Coffee className="h-5 w-5" />
               <span className="text-sm font-medium">Sling Schedule Manager</span>
             </div>
+            <div className="absolute right-0 flex items-center gap-1">
+              <ActivityDrawer />
+              <ChangelogDrawer
+                investigating={investigating}
+                onDismissInvestigating={handleDismissInvestigating}
+              />
+            </div>
+          </div>
+
+          {/* Friendly header */}
+          <div className="text-center mb-10 animate-bounce-in">
             <h1 className="text-4xl md:text-5xl font-display font-semibold text-foreground mb-3 tracking-tight">
               Your Team Schedule
             </h1>

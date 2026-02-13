@@ -1,7 +1,7 @@
 # Design: Append-Only Audit Log for Write Requests
 
 **Date:** 2026-02-13
-**Status:** Approved
+**Status:** Completed
 **Motivation:** Incident `bd35292f` — idempotency records are overwritten on retry and expired by TTL, making failed requests unrecoverable. Cloud Run logs had gaps because the Sling client didn't log failures (now fixed). A durable, append-only audit trail ensures every write request is permanently recorded.
 
 ## Decision Summary

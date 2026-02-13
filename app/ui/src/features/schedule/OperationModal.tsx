@@ -6,11 +6,12 @@ interface OperationModalProps {
   open: boolean;
   message: string;
   type: 'loading' | 'success' | 'error';
+  onClose?: () => void;
 }
 
-export function OperationModal({ open, message, type }: OperationModalProps) {
+export function OperationModal({ open, message, type, onClose }: OperationModalProps) {
   return (
-    <Dialog open={open}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose?.(); }}>
       <DialogContent className="sm:max-w-md rounded-2xl">
         <DialogHeader>
           <DialogTitle className="text-center">{message}</DialogTitle>

@@ -1,8 +1,10 @@
 # Changelog
 
 This file is the quick handoff log for future sessions.
-Use newest-first entries and keep each section brief and concrete.
+New entries goes at the bottom of the file and keep each section brief and concrete.
 Do not treat this file as runtime configuration truth; use `README.md` for current canonical env/service settings.
+Do not modify existing entries.
+Multiple entries for the same day is okay.
 
 ## Entry Template
 
@@ -21,108 +23,6 @@ Do not treat this file as runtime configuration truth; use `README.md` for curre
   - Remaining task 1
   - Remaining task 2
 ```
-
-## 2026-02-13
-- Scope:
-  - Observability and resilience fixes for incident `bd35292f` (partial bulk update failure on 2026-02-12).
-- Completed:
-  - **Rec #1 — Sling error logging:** Added `console.error` with structured JSON (`sling_request_failed`) in `services/api/src/clients/sling.js` before throwing `ApiError` on non-2xx responses. Logs `requestId`, `method`, `url`, `status`, `durationMs`, and `payload`. Failed Sling requests are now visible in Cloud Run logs.
-  - **Rec #2 — Report depth limit:** Increased `sanitizeForReport` depth from 4 to 7 in `app/ui/src/lib/errors.ts`. Sling error details (at depth 5) now survive truncation in Slack error reports.
-  - **Rec #3 — Reduce concurrency:** Changed `CONCURRENCY` from 4 to 2 in `services/api/src/routes/updates.js`. Halves peak concurrent Sling API calls as a precaution until the rate limiting hypothesis is confirmed or ruled out.
-- Deploy/Config:
-  - No new env vars. Concurrency is a code constant. Redeploy API and UI to activate.
-- Validation:
-  - API tests: 28/28 passing. UI lint clean, build successful.
-- Open/Next:
-  - Monitor next multi-team bulk edit for Sling error logs to confirm or rule out rate limiting.
-  - If rate limiting confirmed, consider stagger delays and/or env-configurable concurrency.
-
-## 2026-02-13 — Append-Only Audit Log
-- Scope:
-  - New `audit_log` Firestore collection that permanently records every PUT/POST write request. Motivated by incident `bd35292f` — idempotency records were overwritten on retry and expired by TTL, making failed requests unrecoverable. Design doc: `docs/plans/2026-02-13-audit-log-design.md`.
-- Completed:
-  - **New file `services/api/src/middleware/audit.js`:** `createAuditStore(env)` factory with memory (test) and Firestore (production) backends. `deriveOutcome(statusCode, payload)` classifies results as `success`, `failure`, or `partial`. `withAuditLog()` wrapper exported for potential reuse. Firestore backend uses `ref.add()` for auto-generated document IDs — records are never overwritten.
-  - **`fireAuditLog` helper in `services/api/src/app.js`:** Fire-and-forget audit write called after `sendJson` on both PUT `/api/shifts/:id` and POST `/api/shifts/bulk` routes. User response is never delayed by audit. On Firestore write failure, `console.error` logs the full audit record as structured JSON (every field preserved in Cloud Run logs).
-  - **Audit record schema:** `requestId`, `idempotencyKey`, `method`, `path`, `body` (full request), `statusCode`, `payload` (full response), `durationMs`, `outcome`, `timestamp`, `auditWriteStatus`.
-  - **`services/api/src/config/env.js`:** Added `auditCollection` env var.
-  - **New test file `services/api/test/audit.test.js`:** 13 tests — `deriveOutcome` branch coverage (6), memory store behavior (2), `withAuditLog` wrapper (4 including failure fallback), integration test through full PUT route (1).
-- Deploy/Config:
-  - Optional new env var: `AUDIT_COLLECTION` (default: `audit_log`). Uses same Firestore database as idempotency (`sling-scheduler`). No TTL policy should be set on this collection — records are permanent.
-  - Redeploy API to activate.
-- Validation:
-  - API tests: 41/41 passing (28 existing + 13 new audit tests). UI lint clean, build successful.
-- Open/Next:
-  - Do NOT set a Firestore TTL policy on `audit_log` — records must be permanent.
-  - Future: build "Recent Activity" frontend feature using `audit_log` collection. The `outcome` field enables filtering; `timestamp` enables ordering.
-
-## 2026-02-12 (in progress)
-Main: `claude --resume 6b9bc99a-f281-417a-8492-85e8dd965aaf`
-Reviewer: `claude --resume a342c71c-5844-4f00-a199-bcce888fb39f`
-- Scope:
-  - Code review fixes — addressing critical reliability and resilience issues identified in `docs/design/CODE_REVIEW_FIXES.md`.
-- Completed:
-  - **Fix #1 — Caspio client timeout:** Added `AbortController` + `setTimeout(env.requestTimeoutMs)` to both `fetchWebhookToken` and `request` in `services/api/src/clients/caspio.js`. Abort throws `CASPIO_TIMEOUT` (504). `clearTimeout` in `finally` blocks. The 401/403 retry path clears the old timer before recursing so each leg gets a fresh timeout. Matches the existing Sling client pattern in `sling.js:36-47`.
-  - **Fix #2 — Unhandled async rejection:** Three-layer defense added. (1) `server.js:28-36`: `.catch()` on `handler(req, res)` promise — writes minimal 500 or calls `res.destroy()`. (2) `server.js:23-25`: `process.on('unhandledRejection')` safety net logs at `fatal` level without terminating. (3) `app.js:460-464`: `if (!res.headersSent)` guard around `sendError` in catch block with `else { res.destroy() }` — prevents `ERR_STREAM_DESTROYED` from escaping and explicitly cleans up connections at both inner and outer layers.
-  - **Fix #3 — Sequential bulk updates parallelized:** Added `CONCURRENCY = 4` constant to `routes/updates.js`. Both `processFlatUpdates` and `processGroupedUpdates` now process batches of 4 in parallel via `Promise.allSettled`. `processAtomicGroup` and `rollbackAtomicSuccesses` remain sequential (required for atomic rollback). ~3.3x speedup for 10-team bulk edits (~8s -> ~2.4s).
-  - **Fix #4 — searchSchedule no longer clears table:** Removed `teams: {}` and `unmatchedShifts: []` from `searchSchedule` initial setState in `use-schedule.ts`. Old data now stays visible during loading and is atomically replaced when the API responds. On error, old data remains visible with an error banner.
-  - **Fix #5 — Bulk edit error preserves user edits:** Partial failure `setTimeout` in `updateAllTeams` (`use-schedule.ts`) now only clears the modal overlay. Removed `bulkEditMode: false` and `editedValues: {}` from the callback. User stays in bulk edit mode after partial failure and can retry or adjust values. Success path still correctly exits bulk edit mode.
-  - **Fix #6 — Mutation guard for all edit paths:** Added `mutating: boolean` to `ScheduleState` in `use-schedule.ts`. Set `true`/`false` via `finally` blocks in `updateTeam`, `updateAllTeams`, and `updateUnmatched`. Wired through `SchedulePage.tsx` to disable: SearchBar (via `loading` prop), BulkControls "Edit All" button (new `disabled` prop), and all TeamRow Edit buttons (via `TeamsTable` `mutating` prop pass-through). Prevents double-reload races and concurrent edit conflicts.
-- Deploy/Config:
-  - No new env vars. Fix #1 uses existing `env.requestTimeoutMs` (default 12000ms). Fix #3's concurrency is a code constant (not env-configurable).
-- Validation:
-  - Code review passed for all items. All 28 existing API tests pass.
-- Open/Next:
-  - **Fix #3 defect resolved:** Non-atomic branch in `processGroupedUpdates` now wrapped in try/catch (lines 354-384), returning a failure result object on error. The `batch.map()` callback never rejects.
-  - Remaining critical item #7 from `CODE_REVIEW_FIXES.md`.
-  - Minor gap: `UnmatchedBanner` Edit buttons not disabled during mutations (low risk, consider follow-up).
-
-## 2026-02-10
-- Scope:
-  - Stabilized post-redesign UI deployment/runtime behavior and fixed a bulk-edit regression.
-- Completed:
-  - Fixed Netlify build/deploy alignment for Vite UI:
-    - `.github/workflows/deploy-ui-netlify.yml` now installs dependencies, builds `app/ui`, and deploys `app/ui/dist`.
-    - Added workflow guard to fail fast if `SCHEDULER_API_BASE_URL` secret is missing.
-    - `netlify.toml` now uses `base = "app/ui"` and `publish = "dist"` to avoid doubled publish paths.
-  - Hardened frontend API base resolution in `app/ui/src/lib/api.ts`:
-    - Priority: `VITE_API_BASE_URL` -> runtime `window.__SCHEDULER_API_BASE__` -> production Cloud Run fallback.
-    - Prevents accidental Netlify-origin `/api/*` calls when API base env is absent.
-  - Fixed Edit All Teams false "No changes to save" behavior:
-    - Bulk row edits are now wired into shared bulk state (`SchedulePage` -> `TeamsTable` -> `TeamRow`).
-    - Save now correctly detects changed teams and submits grouped bulk updates.
-- Deploy/Config:
-  - Netlify site settings must match Vite output:
-    - Base directory: `app/ui`
-    - Build command: `npm run build`
-    - Publish directory: `dist`
-  - No Cloud Run traffic change is required for Netlify 404 `/api/*` symptoms; that issue is UI API-base configuration.
-- Validation:
-  - `app/ui` checks passing: `npm run lint`, `npm run build`.
-  - Build output generated successfully after fixes.
-- Open/Next:
-  - Confirm `SCHEDULER_API_BASE_URL` secret points to canonical Cloud Run URL.
-  - Keep generated artifact `app/ui/tsconfig.tsbuildinfo` out of commits unless intentionally tracked.
-
-## 2026-02-09
-- Scope:
-  - Merged the UI redesign workstream and validated both backend and frontend checks.
-  - Tightened workflow trigger rules to reduce unintended runs/deploys.
-  - Continued doc hardening to keep runtime config truth centralized.
-- Completed:
-  - New React/Vite/Tailwind/shadcn UI is in `app/ui`; prior static UI retained in `app/ui-backup` for historical reference.
-  - Updated `.github/workflows/api-ci.yml` to run only on `main` pushes.
-  - Narrowed `.github/workflows/deploy-cloud-run.yml` path filters so docs-only changes under `infra/cloudrun` do not trigger API deploys.
-  - Confirmed runtime env source-of-truth pattern remains `README.md` (ops docs reference it rather than duplicating full lists).
-- Deploy/Config:
-  - For local UI CORS testing, use a tagged Cloud Run revision at `0%` traffic and keep production at `100%` on a validated revision.
-  - `CORS_ALLOWED_ORIGINS` must be a single comma-separated env value (not multiple duplicated env keys).
-- Validation:
-  - API tests passing: `npm test` in `services/api` (`5/5`).
-  - UI checks passing: `npm run lint` and `npm run build` in `app/ui`.
-- Open/Next:
-  - Before final push/commit, confirm whether auxiliary files (`.claude/**`, `.mcp.json`, `temp-file.md`, screenshots, `app/ui/tsconfig.tsbuildinfo`) should remain in tracked history.
-  - Rotate/revoke previously exposed webhook/token credentials in external systems and resolve GitHub secret-scanning alerts.
-
 ## 2026-02-06
 - Scope:
   - Stabilized scheduling updates, improved user error messaging, and added automatic Slack escalation via Zapier.
@@ -193,3 +93,143 @@ Reviewer: `claude --resume a342c71c-5844-4f00-a199-bcce888fb39f`
 - Open/Next:
   - Add Caspio timeout/retry parity with Sling client.
   - Add compensating worker for rollback reconciliation failures.
+
+## 2026-02-09
+- Scope:
+  - Merged the UI redesign workstream and validated both backend and frontend checks.
+  - Tightened workflow trigger rules to reduce unintended runs/deploys.
+  - Continued doc hardening to keep runtime config truth centralized.
+- Completed:
+  - New React/Vite/Tailwind/shadcn UI is in `app/ui`; prior static UI retained in `app/ui-backup` for historical reference.
+  - Updated `.github/workflows/api-ci.yml` to run only on `main` pushes.
+  - Narrowed `.github/workflows/deploy-cloud-run.yml` path filters so docs-only changes under `infra/cloudrun` do not trigger API deploys.
+  - Confirmed runtime env source-of-truth pattern remains `README.md` (ops docs reference it rather than duplicating full lists).
+- Deploy/Config:
+  - For local UI CORS testing, use a tagged Cloud Run revision at `0%` traffic and keep production at `100%` on a validated revision.
+  - `CORS_ALLOWED_ORIGINS` must be a single comma-separated env value (not multiple duplicated env keys).
+- Validation:
+  - API tests passing: `npm test` in `services/api` (`5/5`).
+  - UI checks passing: `npm run lint` and `npm run build` in `app/ui`.
+- Open/Next:
+  - Before final push/commit, confirm whether auxiliary files (`.claude/**`, `.mcp.json`, `temp-file.md`, screenshots, `app/ui/tsconfig.tsbuildinfo`) should remain in tracked history.
+  - Rotate/revoke previously exposed webhook/token credentials in external systems and resolve GitHub secret-scanning alerts.
+
+## 2026-02-10
+- Scope:
+  - Stabilized post-redesign UI deployment/runtime behavior and fixed a bulk-edit regression.
+- Completed:
+  - Fixed Netlify build/deploy alignment for Vite UI:
+    - `.github/workflows/deploy-ui-netlify.yml` now installs dependencies, builds `app/ui`, and deploys `app/ui/dist`.
+    - Added workflow guard to fail fast if `SCHEDULER_API_BASE_URL` secret is missing.
+    - `netlify.toml` now uses `base = "app/ui"` and `publish = "dist"` to avoid doubled publish paths.
+  - Hardened frontend API base resolution in `app/ui/src/lib/api.ts`:
+    - Priority: `VITE_API_BASE_URL` -> runtime `window.__SCHEDULER_API_BASE__` -> production Cloud Run fallback.
+    - Prevents accidental Netlify-origin `/api/*` calls when API base env is absent.
+  - Fixed Edit All Teams false "No changes to save" behavior:
+    - Bulk row edits are now wired into shared bulk state (`SchedulePage` -> `TeamsTable` -> `TeamRow`).
+    - Save now correctly detects changed teams and submits grouped bulk updates.
+- Deploy/Config:
+  - Netlify site settings must match Vite output:
+    - Base directory: `app/ui`
+    - Build command: `npm run build`
+    - Publish directory: `dist`
+  - No Cloud Run traffic change is required for Netlify 404 `/api/*` symptoms; that issue is UI API-base configuration.
+- Validation:
+  - `app/ui` checks passing: `npm run lint`, `npm run build`.
+  - Build output generated successfully after fixes.
+- Open/Next:
+  - Confirm `SCHEDULER_API_BASE_URL` secret points to canonical Cloud Run URL.
+  - Keep generated artifact `app/ui/tsconfig.tsbuildinfo` out of commits unless intentionally tracked.
+
+## 2026-02-12 (in progress)
+Main: `claude --resume 6b9bc99a-f281-417a-8492-85e8dd965aaf`
+Reviewer: `claude --resume a342c71c-5844-4f00-a199-bcce888fb39f`
+- Scope:
+  - Code review fixes — addressing critical reliability and resilience issues identified in `docs/design/CODE_REVIEW_FIXES.md`.
+- Completed:
+  - **Fix #1 — Caspio client timeout:** Added `AbortController` + `setTimeout(env.requestTimeoutMs)` to both `fetchWebhookToken` and `request` in `services/api/src/clients/caspio.js`. Abort throws `CASPIO_TIMEOUT` (504). `clearTimeout` in `finally` blocks. The 401/403 retry path clears the old timer before recursing so each leg gets a fresh timeout. Matches the existing Sling client pattern in `sling.js:36-47`.
+  - **Fix #2 — Unhandled async rejection:** Three-layer defense added. (1) `server.js:28-36`: `.catch()` on `handler(req, res)` promise — writes minimal 500 or calls `res.destroy()`. (2) `server.js:23-25`: `process.on('unhandledRejection')` safety net logs at `fatal` level without terminating. (3) `app.js:460-464`: `if (!res.headersSent)` guard around `sendError` in catch block with `else { res.destroy() }` — prevents `ERR_STREAM_DESTROYED` from escaping and explicitly cleans up connections at both inner and outer layers.
+  - **Fix #3 — Sequential bulk updates parallelized:** Added `CONCURRENCY = 4` constant to `routes/updates.js`. Both `processFlatUpdates` and `processGroupedUpdates` now process batches of 4 in parallel via `Promise.allSettled`. `processAtomicGroup` and `rollbackAtomicSuccesses` remain sequential (required for atomic rollback). ~3.3x speedup for 10-team bulk edits (~8s -> ~2.4s).
+  - **Fix #4 — searchSchedule no longer clears table:** Removed `teams: {}` and `unmatchedShifts: []` from `searchSchedule` initial setState in `use-schedule.ts`. Old data now stays visible during loading and is atomically replaced when the API responds. On error, old data remains visible with an error banner.
+  - **Fix #5 — Bulk edit error preserves user edits:** Partial failure `setTimeout` in `updateAllTeams` (`use-schedule.ts`) now only clears the modal overlay. Removed `bulkEditMode: false` and `editedValues: {}` from the callback. User stays in bulk edit mode after partial failure and can retry or adjust values. Success path still correctly exits bulk edit mode.
+  - **Fix #6 — Mutation guard for all edit paths:** Added `mutating: boolean` to `ScheduleState` in `use-schedule.ts`. Set `true`/`false` via `finally` blocks in `updateTeam`, `updateAllTeams`, and `updateUnmatched`. Wired through `SchedulePage.tsx` to disable: SearchBar (via `loading` prop), BulkControls "Edit All" button (new `disabled` prop), and all TeamRow Edit buttons (via `TeamsTable` `mutating` prop pass-through). Prevents double-reload races and concurrent edit conflicts.
+- Deploy/Config:
+  - No new env vars. Fix #1 uses existing `env.requestTimeoutMs` (default 12000ms). Fix #3's concurrency is a code constant (not env-configurable).
+- Validation:
+  - Code review passed for all items. All 28 existing API tests pass.
+- Open/Next:
+  - **Fix #3 defect resolved:** Non-atomic branch in `processGroupedUpdates` now wrapped in try/catch (lines 354-384), returning a failure result object on error. The `batch.map()` callback never rejects.
+  - Remaining critical item #7 from `CODE_REVIEW_FIXES.md`.
+  - Minor gap: `UnmatchedBanner` Edit buttons not disabled during mutations (low risk, consider follow-up).
+
+## 2026-02-13
+- Scope:
+  - Observability and resilience fixes for incident `bd35292f` (partial bulk update failure on 2026-02-12).
+- Completed:
+  - **Rec #1 — Sling error logging:** Added `console.error` with structured JSON (`sling_request_failed`) in `services/api/src/clients/sling.js` before throwing `ApiError` on non-2xx responses. Logs `requestId`, `method`, `url`, `status`, `durationMs`, and `payload`. Failed Sling requests are now visible in Cloud Run logs.
+  - **Rec #2 — Report depth limit:** Increased `sanitizeForReport` depth from 4 to 7 in `app/ui/src/lib/errors.ts`. Sling error details (at depth 5) now survive truncation in Slack error reports.
+  - **Rec #3 — Reduce concurrency:** Changed `CONCURRENCY` from 4 to 2 in `services/api/src/routes/updates.js`. Halves peak concurrent Sling API calls as a precaution until the rate limiting hypothesis is confirmed or ruled out.
+- Deploy/Config:
+  - No new env vars. Concurrency is a code constant. Redeploy API and UI to activate.
+- Validation:
+  - API tests: 28/28 passing. UI lint clean, build successful.
+- Open/Next:
+  - Monitor next multi-team bulk edit for Sling error logs to confirm or rule out rate limiting.
+  - If rate limiting confirmed, consider stagger delays and/or env-configurable concurrency.
+
+  ## 2026-02-13 — Append-Only Audit Log
+- Scope:
+  - New `audit_log` Firestore collection that permanently records every PUT/POST write request. Motivated by incident `bd35292f` — idempotency records were overwritten on retry and expired by TTL, making failed requests unrecoverable. Design doc: `docs/plans/2026-02-13-audit-log-design.md`.
+- Completed:
+  - **New file `services/api/src/middleware/audit.js`:** `createAuditStore(env)` factory with memory (test) and Firestore (production) backends. `deriveOutcome(statusCode, payload)` classifies results as `success`, `failure`, or `partial`. `withAuditLog()` wrapper exported for potential reuse. Firestore backend uses `ref.add()` for auto-generated document IDs — records are never overwritten.
+  - **`fireAuditLog` helper in `services/api/src/app.js`:** Fire-and-forget audit write called after `sendJson` on both PUT `/api/shifts/:id` and POST `/api/shifts/bulk` routes. User response is never delayed by audit. On Firestore write failure, `console.error` logs the full audit record as structured JSON (every field preserved in Cloud Run logs).
+  - **Audit record schema:** `requestId`, `idempotencyKey`, `method`, `path`, `body` (full request), `statusCode`, `payload` (full response), `durationMs`, `outcome`, `timestamp`, `auditWriteStatus`.
+  - **`services/api/src/config/env.js`:** Added `auditCollection` env var.
+  - **New test file `services/api/test/audit.test.js`:** 13 tests — `deriveOutcome` branch coverage (6), memory store behavior (2), `withAuditLog` wrapper (4 including failure fallback), integration test through full PUT route (1).
+- Deploy/Config:
+  - Optional new env var: `AUDIT_COLLECTION` (default: `audit_log`). Uses same Firestore database as idempotency (`sling-scheduler`). No TTL policy should be set on this collection — records are permanent.
+  - Redeploy API to activate.
+- Validation:
+  - API tests: 41/41 passing (28 existing + 13 new audit tests). UI lint clean, build successful.
+- Open/Next:
+  - Do NOT set a Firestore TTL policy on `audit_log` — records must be permanent.
+  - Future: build "Recent Activity" frontend feature using `audit_log` collection. The `outcome` field enables filtering; `timestamp` enables ordering.
+
+## 2026-02-13 — Activity & Changelog Backend
+- Scope:
+  - New `GET /api/audit-log` endpoint and initial `system-changelog.json` static file. Design doc: `docs/plans/2026-02-13-activity-changelog-design.md`.
+- Completed:
+  - **`query()` method on audit store:** Added `query({ limit, cursor })` to both memory and Firestore backends in `services/api/src/middleware/audit.js`. Memory uses array index cursor; Firestore uses `orderBy('timestamp', 'desc')` with `startAfter(cursorDoc)`.
+  - **New file `services/api/src/routes/audit-log.js`:** `extractScheduleDate(payload)` digs into two-level nested `payload.results[].results[].data.date`. `mapAuditEntry(raw)` transforms raw audit records into display-ready objects with `type`, `summary`, `scheduleDate`, and `groups`. `handleGetAuditLog()` route handler with limit clamping (1-50) and cursor pagination.
+  - **`services/api/src/app.js`:** Registered `GET /api/audit-log` route between `/api/schedule` and `/api/shifts/`.
+  - **New file `services/api/test/audit-log-route.test.js`:** 11 tests — `extractScheduleDate` (3), `mapAuditEntry` (6), integration through full HTTP route (2 including pagination).
+  - **`services/api/test/audit.test.js`:** 3 new tests for `query()` method (newest-first, cursor pagination, empty store).
+  - **New file `app/ui/public/system-changelog.json`:** Initial static changelog with entries for 2026-02-13, 2026-02-12, and 2026-02-10.
+- Deploy/Config:
+  - No new env vars. Redeploy API to activate the new endpoint. The `system-changelog.json` deploys automatically with the UI via Netlify.
+- Validation:
+  - API tests: 55/55 passing (41 existing + 14 new). UI lint clean, build successful.
+
+## 2026-02-13 — Activity & Changelog Frontend
+- Scope:
+  - Frontend UI for both "Recent Activity" and "System Change Log" features, plus investigating indicator and developer preview page. Design doc: `docs/plans/2026-02-13-activity-changelog-design.md`. Implementation plan: `docs/plans/2026-02-13-activity-changelog-frontend-plan.md`.
+- Completed:
+  - **New types file `app/ui/src/types/activity.ts`:** `ActivityEntry`, `ActivityGroup`, `ActivityResponse`, and `ChangelogDay` interfaces matching the `GET /api/audit-log` API contract and `system-changelog.json` format.
+  - **New hook `app/ui/src/hooks/use-activity.ts`:** Fetches from `GET /api/audit-log` via existing `apiRequest`. Tracks `loading`, `loadingMore`, `error`, `nextCursor`. `fetchMore()` appends paginated entries with cursor encoding.
+  - **New hook `app/ui/src/hooks/use-changelog.ts`:** Fetches `system-changelog.json` via plain `fetch()`. Checks `clearInvestigating` field in JSON entries for developer-triggered flag clear. Exposes `dismissInvestigating()` and `checkInvestigating()` for UI state management.
+  - **Modified `app/ui/src/lib/errors.ts`:** `reportErrorToOps()` now sets `localStorage` investigating flag (`changelog_investigating`) when the error report is triggered. New exports: `getInvestigatingFlag()` and `clearInvestigatingFlag()`. All localStorage operations wrapped in try/catch for private browsing safety.
+  - **New component `app/ui/src/features/activity/ActivityDrawer.tsx`:** Sheet-based drawer for Recent Activity. Fetches on open. Displays entries newest-first with Eastern Time timestamps, outcome badges (success/failure/partial), expandable bulk group details via Collapsible. Pagination via "Load more" button. Empty, loading, and error states with retry.
+  - **New component `app/ui/src/features/changelog/ChangelogDrawer.tsx`:** Sheet-based drawer for System Change Log. Loads static JSON on open. Displays entries grouped by date. Investigating banner with exact message: "Investigating an isolated incident that prevented a team from being updated. System remains operational." Banner shows on current open session then clears flag. Trigger button has pulsating red dot when investigating flag is active.
+  - **New shadcn components installed:** `sheet.tsx`, `scroll-area.tsx`.
+  - **`app/ui/src/features/schedule/SchedulePage.tsx`:** Both drawers integrated into top bar alongside branding. Investigating flag checked on mount via `useEffect` so pulsating dot is visible immediately. `handleDismissInvestigating` callback syncs local state when changelog opens.
+  - **New preview page `app/ui/src/features/preview/PreviewPage.tsx`:** Dev-only component state inspector at `/preview`. Renders real production components with mock data. Control panel with 18 states across 3 categories: Recent Activity (7 states), System Change Log (4 states), Alerts & Modals (7 states). No PUT/POST requests — all mock data is static. Lazy-loaded behind `import.meta.env.DEV` guard — absent from production bundle.
+  - **`app/ui/src/App.tsx`:** Routes to `PreviewPage` when `DEV && pathname === '/preview'`, otherwise renders `SchedulePage`.
+- Deploy/Config:
+  - No new env vars. Redeploy UI via Netlify to activate. `system-changelog.json` already created by backend task.
+  - Preview page is dev-only — not included in production build. Access via `npm run dev` then `http://localhost:5173/preview`.
+- Validation:
+  - UI lint clean, build successful. Production bundle: 462.64 KB (no preview code included). API tests: 55/55 passing, no regressions.
+
+// main agent: claude --resume ee1a6309-df6a-4f23-8e0c-982d948396ac
+// implemented by: claude --resume 3d48e26c-45e3-46c9-a0f2-2b1949c57f33
+// final reviewer: claude --resume 43f6ffed-ccf8-47b7-8597-002e23dce666
