@@ -4,6 +4,7 @@ import {
   buildScopedIdempotencyKey,
   createIdempotencyStore
 } from './middleware/idempotency.js';
+import { createAuditStore, deriveOutcome } from './middleware/audit.js';
 import { buildRequestContext } from './middleware/request-id.js';
 import { getPathAndQuery, readRequestBodySafely, sendJson } from './utils/http.js';
 import { handleGetSchedule } from './routes/schedule.js';
@@ -106,6 +107,40 @@ function toIdempotencyInProgressPayload({ requestId, path }) {
       }
     }
   };
+}
+
+function fireAuditLog(auditStorePromise, { requestId, idempotencyKey, method, path, body, statusCode, payload, startedAt }) {
+  const durationMs = Date.now() - startedAt;
+  auditStorePromise.then((store) =>
+    store.record({
+      requestId,
+      idempotencyKey: idempotencyKey || null,
+      method,
+      path,
+      body,
+      statusCode,
+      payload,
+      durationMs,
+      outcome: deriveOutcome(statusCode, payload)
+    })
+  ).catch((err) => {
+    console.error(
+      JSON.stringify({
+        level: 'error',
+        msg: 'audit_write_failed',
+        requestId,
+        idempotencyKey: idempotencyKey || null,
+        method,
+        path,
+        body,
+        statusCode,
+        payload,
+        durationMs,
+        outcome: deriveOutcome(statusCode, payload),
+        auditError: err?.message || String(err)
+      })
+    );
+  });
 }
 
 async function executeIdempotentWrite({
@@ -226,7 +261,8 @@ export function createRequestHandler({
   slingClient,
   caspioClient,
   errorReporterClient = null,
-  idempotencyStore = null
+  idempotencyStore = null,
+  auditStore = null
 }) {
   const readinessCache = {
     expiresAt: 0,
@@ -237,6 +273,9 @@ export function createRequestHandler({
   const idempotencyStorePromise = idempotencyStore
     ? Promise.resolve(idempotencyStore)
     : createIdempotencyStore(env);
+  const auditStorePromise = auditStore
+    ? Promise.resolve(auditStore)
+    : createAuditStore(env);
 
   return async function routeRequest(req, res) {
     const { requestId } = buildRequestContext(req);
@@ -329,6 +368,7 @@ export function createRequestHandler({
       }
 
       if (req.method === 'PUT' && path.startsWith('/api/shifts/')) {
+        const startedAt = Date.now();
         const encodedId = path.replace('/api/shifts/', '');
         const occurrenceId = decodeURIComponent(encodedId);
         const body = (await readRequestBodySafely(req, requestId)) || {};
@@ -362,10 +402,15 @@ export function createRequestHandler({
           }
         });
         sendJson(res, result.statusCode, result.payload, baseHeaders);
+        fireAuditLog(auditStorePromise, {
+          requestId, idempotencyKey, method: req.method, path, body,
+          statusCode: result.statusCode, payload: result.payload, startedAt
+        });
         return;
       }
 
       if (req.method === 'POST' && path === '/api/shifts/bulk') {
+        const startedAt = Date.now();
         const body = (await readRequestBodySafely(req, requestId)) || {};
         const idempotencyKey = normalizeIdempotencyKey(req.headers['idempotency-key']);
         const result = await executeIdempotentWrite({
@@ -394,6 +439,10 @@ export function createRequestHandler({
           }
         });
         sendJson(res, result.statusCode, result.payload, baseHeaders);
+        fireAuditLog(auditStorePromise, {
+          requestId, idempotencyKey, method: req.method, path, body,
+          statusCode: result.statusCode, payload: result.payload, startedAt
+        });
         return;
       }
 

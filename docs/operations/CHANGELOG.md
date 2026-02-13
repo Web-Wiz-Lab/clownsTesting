@@ -37,6 +37,24 @@ Do not treat this file as runtime configuration truth; use `README.md` for curre
   - Monitor next multi-team bulk edit for Sling error logs to confirm or rule out rate limiting.
   - If rate limiting confirmed, consider stagger delays and/or env-configurable concurrency.
 
+## 2026-02-13 — Append-Only Audit Log
+- Scope:
+  - New `audit_log` Firestore collection that permanently records every PUT/POST write request. Motivated by incident `bd35292f` — idempotency records were overwritten on retry and expired by TTL, making failed requests unrecoverable. Design doc: `docs/plans/2026-02-13-audit-log-design.md`.
+- Completed:
+  - **New file `services/api/src/middleware/audit.js`:** `createAuditStore(env)` factory with memory (test) and Firestore (production) backends. `deriveOutcome(statusCode, payload)` classifies results as `success`, `failure`, or `partial`. `withAuditLog()` wrapper exported for potential reuse. Firestore backend uses `ref.add()` for auto-generated document IDs — records are never overwritten.
+  - **`fireAuditLog` helper in `services/api/src/app.js`:** Fire-and-forget audit write called after `sendJson` on both PUT `/api/shifts/:id` and POST `/api/shifts/bulk` routes. User response is never delayed by audit. On Firestore write failure, `console.error` logs the full audit record as structured JSON (every field preserved in Cloud Run logs).
+  - **Audit record schema:** `requestId`, `idempotencyKey`, `method`, `path`, `body` (full request), `statusCode`, `payload` (full response), `durationMs`, `outcome`, `timestamp`, `auditWriteStatus`.
+  - **`services/api/src/config/env.js`:** Added `auditCollection` env var.
+  - **New test file `services/api/test/audit.test.js`:** 13 tests — `deriveOutcome` branch coverage (6), memory store behavior (2), `withAuditLog` wrapper (4 including failure fallback), integration test through full PUT route (1).
+- Deploy/Config:
+  - Optional new env var: `AUDIT_COLLECTION` (default: `audit_log`). Uses same Firestore database as idempotency (`sling-scheduler`). No TTL policy should be set on this collection — records are permanent.
+  - Redeploy API to activate.
+- Validation:
+  - API tests: 41/41 passing (28 existing + 13 new audit tests). UI lint clean, build successful.
+- Open/Next:
+  - Do NOT set a Firestore TTL policy on `audit_log` — records must be permanent.
+  - Future: build "Recent Activity" frontend feature using `audit_log` collection. The `outcome` field enables filtering; `timestamp` enables ordering.
+
 ## 2026-02-12 (in progress)
 Main: `claude --resume 6b9bc99a-f281-417a-8492-85e8dd965aaf`
 Reviewer: `claude --resume a342c71c-5844-4f00-a199-bcce888fb39f`

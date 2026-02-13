@@ -43,7 +43,8 @@ export function loadEnv() {
     idempotencyTtlSeconds: intFromEnv('IDEMPOTENCY_TTL_SECONDS', 600),
     idempotencyPendingTtlSeconds: intFromEnv('IDEMPOTENCY_PENDING_TTL_SECONDS', 120),
     idempotencyProjectId: process.env.IDEMPOTENCY_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || '',
-    idempotencyDatabaseId: process.env.IDEMPOTENCY_DATABASE_ID || ''
+    idempotencyDatabaseId: process.env.IDEMPOTENCY_DATABASE_ID || '',
+    auditCollection: process.env.AUDIT_COLLECTION || 'audit_log'
   };
 
   const missing = REQUIRED.filter((key) => !process.env[key]);

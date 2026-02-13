@@ -2,13 +2,35 @@
 
 Use this file as the single entry point for new AI sessions (Codex/Claude).
 
-Last updated: 2026-02-10
+Last updated: 2026-02-13
 
 ## Current Work
 
 ### Session Stop Log
 
-#### 2026-02-10 (latest)
+#### 2026-02-13 (latest)
+- Completed:
+  - Incident `bd35292f` (partial bulk update failure) investigated and remediated:
+    - Added `console.error` for failed Sling responses (`services/api/src/clients/sling.js`).
+    - Increased `sanitizeForReport` depth from 4 to 7 (`app/ui/src/lib/errors.ts`).
+    - Reduced bulk update `CONCURRENCY` from 4 to 2 (`services/api/src/routes/updates.js`).
+  - Append-only audit log implemented (`services/api/src/middleware/audit.js`):
+    - New `audit_log` Firestore collection records every PUT/POST write request with full request body, full response payload, timing, and outcome.
+    - Fire-and-forget after response is sent. Falls back to `console.error` on Firestore failure.
+    - Design doc: `docs/plans/2026-02-13-audit-log-design.md`.
+  - Tests: 41/41 API, UI lint clean, UI build successful.
+- Current production guidance:
+  - Redeploy API and UI to activate all changes.
+  - Do NOT set a Firestore TTL policy on `audit_log` — records must be permanent.
+  - Optional env var `AUDIT_COLLECTION` (default: `audit_log`), uses same Firestore DB as idempotency.
+  - Monitor next multi-team bulk edit for Sling error logs to confirm or rule out rate limiting hypothesis.
+- Next recommended starting point for a new session:
+  - Check `docs/operations/CHANGELOG.md` for the two 2026-02-13 entries.
+  - Check `docs/operations/INCIDENT_REPORT.md` for incident `bd35292f` status (actual cause still indeterminate — awaiting next failure with improved logging).
+  - Remaining resilience work: `03_CASPIO_TIMEOUT_RETRY_PARITY`, `02_ROLLBACK_COMPENSATING_WORKER`.
+  - Future feature: "Recent Activity" frontend view using `audit_log` collection.
+
+#### 2026-02-10
 - Completed:
   - Fixed post-redesign UI deploy/runtime issues:
     - Netlify deploy pipeline now builds Vite app and deploys `app/ui/dist`.
@@ -81,8 +103,9 @@ Open order for most sessions:
 1. `README.md`
 2. `docs/operations/CHANGELOG.md`
 3. `docs/operations/INCIDENT_REPORT.md`
-4. `docs/operations/GCP_SETUP.md`
-5. `infra/cloudrun/README.md`
+4. `docs/plans/` (if relevant design docs exist for current work)
+5. `docs/operations/GCP_SETUP.md`
+6. `infra/cloudrun/README.md`
 
 ### Core Runbooks and Architecture
 
@@ -106,6 +129,13 @@ Open order for most sessions:
 | `docs/operations/NETLIFY_SETUP.md` | Netlify setup and UI deploy wiring. | Open for UI hosting/deploy changes. |
 | `infra/cloudrun/README.md` | Cloud Run deploy runbook and runtime config reference. | Open for service deployment and runtime variables. |
 | `infra/cloudrun/SERVICE_CONFIG.md` | Cloud Run service sizing/settings recommendations. | Open when tuning performance/cost/runtime settings. |
+
+### Design Plans
+
+| Path | What it contains | When to open |
+|---|---|---|
+| `docs/plans/2026-02-13-audit-log-design.md` | Approved design for append-only audit log feature. | Reference for audit log architecture decisions. |
+| `docs/plans/2026-02-13-audit-log-plan.md` | Implementation plan with task breakdown and required reading. | Reference for how audit log was built. |
 
 ### Reliability and Follow-up Work
 

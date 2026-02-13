@@ -274,7 +274,7 @@ _Indeterminate._ The exact Sling HTTP status code for the two failed PUTs cannot
 
 ## Fix
 
-**Applied 2026-02-13.** Three changes addressing all three revised recommendations:
+**Applied 2026-02-13.** Four changes addressing all three revised recommendations plus durable audit trail:
 
 1. **Added `console.error` for failed Sling responses** (`services/api/src/clients/sling.js`). Structured JSON log entry (`level: 'error'`, `msg: 'sling_request_failed'`) emitted before throwing `ApiError` inside the `if (!response.ok)` block. Includes `requestId`, `method`, `url`, `status`, `durationMs`, and `payload`. Mirrors the existing success-path logging at lines 72-82.
 
@@ -282,8 +282,10 @@ _Indeterminate._ The exact Sling HTTP status code for the two failed PUTs cannot
 
 3. **Reduced `CONCURRENCY` from 4 to 2** (`services/api/src/routes/updates.js`). Halves peak concurrent Sling API calls as a precaution until rate limiting can be confirmed or ruled out by the improved logging. Peak concurrent calls drops from 8 to 4; total rapid-fire calls for a 4-team bulk edit drops from 16 to 8 (sequential within each pair).
 
+4. **Added append-only audit log** (`services/api/src/middleware/audit.js`). New `audit_log` Firestore collection records every PUT/POST write request with full request and response payloads, independent of idempotency store. Documents use auto-generated IDs (never overwritten). Fire-and-forget after response is sent; falls back to `console.error` on Firestore failure.
+
 ### Validation
 
-- API tests: 28/28 passing (`npm test` in `services/api/`).
+- API tests: 41/41 passing (`npm test` in `services/api/`).
 - UI lint: clean (`npm run lint` in `app/ui/`).
 - UI build: successful (`npm run build` in `app/ui/`).
