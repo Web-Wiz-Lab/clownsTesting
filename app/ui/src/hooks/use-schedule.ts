@@ -13,6 +13,7 @@ import type {
 export interface ScheduleState {
   date: Date | undefined;
   loading: boolean;
+  mutating: boolean;
   teams: Record<string, TeamData>;
   unmatchedShifts: UnmatchedShift[];
   error: string | null;
@@ -45,6 +46,7 @@ export function useSchedule(): [ScheduleState, ScheduleActions] {
   const [state, setState] = useState<ScheduleState>({
     date: undefined,
     loading: false,
+    mutating: false,
     teams: {},
     unmatchedShifts: [],
     error: null,
@@ -123,8 +125,6 @@ export function useSchedule(): [ScheduleState, ScheduleActions] {
       setState((prev) => ({
         ...prev,
         loading: true,
-        teams: {},
-        unmatchedShifts: [],
         bulkEditMode: false,
         editedValues: {},
         editingTeam: null,
@@ -204,6 +204,8 @@ export function useSchedule(): [ScheduleState, ScheduleActions] {
         return;
       }
 
+      setState((prev) => ({ ...prev, mutating: true }));
+
       try {
         const response = await apiRequest<BulkUpdateResponse>('/api/shifts/bulk', 'POST', {
           groups: [
@@ -276,6 +278,8 @@ export function useSchedule(): [ScheduleState, ScheduleActions] {
             }));
           }
         });
+      } finally {
+        setState((prev) => ({ ...prev, mutating: false }));
       }
     },
     [state.teams, state.date, cancelTeamEdit, searchSchedule, showSuccess, showError]
@@ -317,6 +321,7 @@ export function useSchedule(): [ScheduleState, ScheduleActions] {
 
       setState((prev) => ({
         ...prev,
+        mutating: true,
         modal: { message: 'Processing Request', type: 'loading' },
       }));
 
@@ -366,7 +371,7 @@ export function useSchedule(): [ScheduleState, ScheduleActions] {
             },
           }));
           setTimeout(() => {
-            setState((prev) => ({ ...prev, modal: null, bulkEditMode: false, editedValues: {} }));
+            setState((prev) => ({ ...prev, modal: null }));
           }, 2500);
 
           const failureMessage = summarizeGroupedFailure(
@@ -414,6 +419,8 @@ export function useSchedule(): [ScheduleState, ScheduleActions] {
             }));
           }
         });
+      } finally {
+        setState((prev) => ({ ...prev, mutating: false }));
       }
     },
     [state.teams, state.date, cancelBulkEdit, searchSchedule, showError]
@@ -449,6 +456,8 @@ export function useSchedule(): [ScheduleState, ScheduleActions] {
         cancelUnmatched(index);
         return;
       }
+
+      setState((prev) => ({ ...prev, mutating: true }));
 
       try {
         const result = await apiRequest(`/api/shifts/${encodeURIComponent(shift.id)}`, 'PUT', {
@@ -497,6 +506,8 @@ export function useSchedule(): [ScheduleState, ScheduleActions] {
             }));
           }
         });
+      } finally {
+        setState((prev) => ({ ...prev, mutating: false }));
       }
     },
     [state.unmatchedShifts, cancelUnmatched, showSuccess, showError]

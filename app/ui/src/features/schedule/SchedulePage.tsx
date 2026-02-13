@@ -29,12 +29,11 @@ export function SchedulePage() {
         return;
       }
 
-      const month = parts[0].padStart(2, '0');
-      const day = parts[1].padStart(2, '0');
-      const year = parts[2];
-      const isoDate = `${year}-${month}-${day}`;
+      const month = parseInt(parts[0], 10);
+      const day = parseInt(parts[1], 10);
+      const year = parseInt(parts[2], 10);
 
-      const parsedDate = new Date(isoDate);
+      const parsedDate = new Date(year, month - 1, day);
       if (!isNaN(parsedDate.getTime())) {
         actions.setDate(parsedDate);
         setTimeout(() => {
@@ -149,7 +148,7 @@ export function SchedulePage() {
               date={state.date}
               onDateChange={actions.setDate}
               onSearch={handleSearch}
-              loading={state.loading}
+              loading={state.loading || state.mutating}
             />
           </div>
 
@@ -244,6 +243,7 @@ export function SchedulePage() {
               <BulkControls
                 bulkEditMode={state.bulkEditMode}
                 hasTeams={hasTeams}
+                disabled={state.mutating}
                 onEditAll={handleEnterBulkEdit}
                 onUpdateAll={handleUpdateAllTeams}
                 onCancelAll={handleCancelBulkEdit}
@@ -254,6 +254,7 @@ export function SchedulePage() {
               teams={state.teams}
               editingTeam={state.editingTeam}
               bulkEditMode={state.bulkEditMode}
+              mutating={state.mutating}
               bulkEditedValues={bulkEditedValues}
               onBulkValuesChange={(teamName, values) => {
                 setBulkEditedValues((prev) => ({

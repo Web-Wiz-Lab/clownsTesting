@@ -4,6 +4,7 @@ import { Edit3, Save, X, Layers } from 'lucide-react';
 interface BulkControlsProps {
   bulkEditMode: boolean;
   hasTeams: boolean;
+  disabled?: boolean;
   onEditAll: () => void;
   onUpdateAll: () => void;
   onCancelAll: () => void;
@@ -12,6 +13,7 @@ interface BulkControlsProps {
 export function BulkControls({
   bulkEditMode,
   hasTeams,
+  disabled = false,
   onEditAll,
   onUpdateAll,
   onCancelAll,
@@ -26,6 +28,7 @@ export function BulkControls({
         <Button
           variant="secondary"
           onClick={onEditAll}
+          disabled={disabled}
           size="lg"
           className="font-semibold bg-secondary hover:bg-secondary/80 text-secondary-foreground shadow-sm hover:shadow-md transition-all hover:scale-105 active:scale-95"
         >

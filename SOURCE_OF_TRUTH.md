@@ -2,13 +2,32 @@
 
 Use this file as the single entry point for new AI sessions (Codex/Claude).
 
-Last updated: 2026-02-09
+Last updated: 2026-02-10
 
 ## Current Work
 
 ### Session Stop Log
 
-#### 2026-02-09 (latest)
+#### 2026-02-10 (latest)
+- Completed:
+  - Fixed post-redesign UI deploy/runtime issues:
+    - Netlify deploy pipeline now builds Vite app and deploys `app/ui/dist`.
+    - Netlify config now sets `base = "app/ui"` and `publish = "dist"`.
+    - Added deploy guard for missing `SCHEDULER_API_BASE_URL` secret.
+  - Fixed frontend API base fallback to prevent Netlify-origin `/api/*` 404s:
+    - `VITE_API_BASE_URL` -> runtime override -> production Cloud Run fallback.
+  - Fixed "Edit All Teams" regression where changed times were treated as unchanged:
+    - Bulk edit state now flows correctly through React components and change detection works.
+- Current production guidance:
+  - For UI outages showing Netlify `/api/*` 404, troubleshoot UI API-base config/deploy first; Cloud Run traffic switching is usually unrelated.
+  - Keep Netlify settings aligned to Vite output (`app/ui`, `npm run build`, `dist`).
+  - Keep API deployment single-writer and route Cloud Run traffic only to validated revisions.
+- Next recommended starting point for a new session:
+  - Verify latest Netlify deploy uses the fixed workflow and settings.
+  - Confirm `SCHEDULER_API_BASE_URL` secret value.
+  - Continue remaining resilience work (`03_CASPIO_TIMEOUT_RETRY_PARITY`, `02_ROLLBACK_COMPENSATING_WORKER`).
+
+#### 2026-02-09
 - Completed:
   - Merged frontend redesign work into the active branch:
     - New UI stack in `app/ui` (React + Vite + Tailwind/shadcn).

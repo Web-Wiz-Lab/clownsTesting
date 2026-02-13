@@ -69,28 +69,47 @@ export function createCaspioClient(env) {
       });
     }
 
-    const response = await fetch(env.caspioTokenWebhookUrl, { method: 'GET' });
-    if (!response.ok) {
-      throw new ApiError('Failed to retrieve Caspio token', {
-        statusCode: 502,
-        code: 'CASPIO_AUTH_FAILED',
-        details: { requestId, status: response.status }
-      });
-    }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), env.requestTimeoutMs);
 
-    const data = await parseResponseBody(response);
-    const token = extractTokenPayload(data);
-    if (!token) {
-      throw new ApiError('Invalid Caspio token response', {
-        statusCode: 502,
-        code: 'CASPIO_AUTH_BAD_RESPONSE',
-        details: { requestId, payload: data }
+    try {
+      const response = await fetch(env.caspioTokenWebhookUrl, {
+        method: 'GET',
+        signal: controller.signal
       });
-    }
+      if (!response.ok) {
+        throw new ApiError('Failed to retrieve Caspio token', {
+          statusCode: 502,
+          code: 'CASPIO_AUTH_FAILED',
+          details: { requestId, status: response.status }
+        });
+      }
 
-    tokenState.token = token.accessToken;
-    tokenState.expiresAt = Date.now() + token.expiresIn * 1000;
-    return tokenState.token;
+      const data = await parseResponseBody(response);
+      const token = extractTokenPayload(data);
+      if (!token) {
+        throw new ApiError('Invalid Caspio token response', {
+          statusCode: 502,
+          code: 'CASPIO_AUTH_BAD_RESPONSE',
+          details: { requestId, payload: data }
+        });
+      }
+
+      tokenState.token = token.accessToken;
+      tokenState.expiresAt = Date.now() + token.expiresIn * 1000;
+      return tokenState.token;
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        throw new ApiError('Caspio token request timed out', {
+          statusCode: 504,
+          code: 'CASPIO_TIMEOUT',
+          details: { requestId }
+        });
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   async function getToken(requestId) {
@@ -111,30 +130,48 @@ export function createCaspioClient(env) {
     const queryString = query ? `?${encodeQuery(query)}` : '';
     const url = `${env.caspioBaseUrl}${path}${queryString}`;
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${token}`
-      }
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), env.requestTimeoutMs);
 
-    if ((response.status === 401 || response.status === 403) && retryWithFreshToken && env.caspioTokenWebhookUrl) {
-      await fetchWebhookToken(requestId);
-      return request(path, query, requestId, false);
-    }
-
-    if (!response.ok) {
-      const payload = await parseResponseBody(response);
-      throw new ApiError('Caspio request failed', {
-        statusCode: response.status,
-        code: 'CASPIO_REQUEST_FAILED',
-        details: { requestId, url, status: response.status, payload }
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        signal: controller.signal
       });
-    }
 
-    const data = await parseResponseBody(response);
-    return data?.Result || [];
+      if ((response.status === 401 || response.status === 403) && retryWithFreshToken && env.caspioTokenWebhookUrl) {
+        clearTimeout(timeout);
+        await fetchWebhookToken(requestId);
+        return request(path, query, requestId, false);
+      }
+
+      if (!response.ok) {
+        const payload = await parseResponseBody(response);
+        throw new ApiError('Caspio request failed', {
+          statusCode: response.status,
+          code: 'CASPIO_REQUEST_FAILED',
+          details: { requestId, url, status: response.status, payload }
+        });
+      }
+
+      const data = await parseResponseBody(response);
+      return data?.Result || [];
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        throw new ApiError('Caspio request timed out', {
+          statusCode: 504,
+          code: 'CASPIO_TIMEOUT',
+          details: { requestId, url }
+        });
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   return {

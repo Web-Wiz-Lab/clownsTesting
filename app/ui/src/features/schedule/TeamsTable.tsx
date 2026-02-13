@@ -12,6 +12,7 @@ interface TeamsTableProps {
   teams: Record<string, TeamData>;
   editingTeam: string | null;
   bulkEditMode: boolean;
+  mutating?: boolean;
   bulkEditedValues: Record<string, EditValues>;
   onBulkValuesChange: (teamName: string, values: EditValues) => void;
   onEditTeam: (teamName: string) => void;
@@ -23,6 +24,7 @@ export function TeamsTable({
   teams,
   editingTeam,
   bulkEditMode,
+  mutating = false,
   bulkEditedValues,
   onBulkValuesChange,
   onEditTeam,
@@ -75,7 +77,7 @@ export function TeamsTable({
               onEdit={() => onEditTeam(teamName)}
               onCancel={() => onCancelTeamEdit(teamName)}
               onUpdate={(values) => onUpdateTeam(teamName, values)}
-              disabled={editingTeam !== null && editingTeam !== teamName}
+              disabled={mutating || (editingTeam !== null && editingTeam !== teamName)}
             />
           ))}
         </TableBody>

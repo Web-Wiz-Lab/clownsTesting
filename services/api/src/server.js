@@ -20,8 +20,20 @@ const handler = createRequestHandler({
   errorReporterClient,
   idempotencyStore
 });
+process.on('unhandledRejection', (reason) => {
+  console.error(JSON.stringify({ level: 'fatal', msg: 'unhandled_rejection', error: String(reason) }));
+});
+
 const server = http.createServer((req, res) => {
-  handler(req, res);
+  handler(req, res).catch((err) => {
+    console.error(JSON.stringify({ level: 'error', msg: 'unhandled_request_error', error: err?.message }));
+    if (!res.headersSent) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ summary: 'failed', error: { code: 'INTERNAL_ERROR' } }));
+    } else {
+      res.destroy();
+    }
+  });
 });
 
 server.listen(env.port, () => {

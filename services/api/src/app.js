@@ -457,7 +457,11 @@ export function createRequestHandler({
           }
         })
       );
-      sendError(res, requestId, error, baseHeaders);
+      if (!res.headersSent) {
+        sendError(res, requestId, error, baseHeaders);
+      } else {
+        res.destroy();
+      }
     }
   };
 }

@@ -22,6 +22,54 @@ Do not treat this file as runtime configuration truth; use `README.md` for curre
   - Remaining task 2
 ```
 
+## 2026-02-12 (in progress)
+Main: `claude --resume 6b9bc99a-f281-417a-8492-85e8dd965aaf`
+Reviewer: `claude --resume a342c71c-5844-4f00-a199-bcce888fb39f`
+- Scope:
+  - Code review fixes — addressing critical reliability and resilience issues identified in `docs/design/CODE_REVIEW_FIXES.md`.
+- Completed:
+  - **Fix #1 — Caspio client timeout:** Added `AbortController` + `setTimeout(env.requestTimeoutMs)` to both `fetchWebhookToken` and `request` in `services/api/src/clients/caspio.js`. Abort throws `CASPIO_TIMEOUT` (504). `clearTimeout` in `finally` blocks. The 401/403 retry path clears the old timer before recursing so each leg gets a fresh timeout. Matches the existing Sling client pattern in `sling.js:36-47`.
+  - **Fix #2 — Unhandled async rejection:** Three-layer defense added. (1) `server.js:28-36`: `.catch()` on `handler(req, res)` promise — writes minimal 500 or calls `res.destroy()`. (2) `server.js:23-25`: `process.on('unhandledRejection')` safety net logs at `fatal` level without terminating. (3) `app.js:460-464`: `if (!res.headersSent)` guard around `sendError` in catch block with `else { res.destroy() }` — prevents `ERR_STREAM_DESTROYED` from escaping and explicitly cleans up connections at both inner and outer layers.
+  - **Fix #3 — Sequential bulk updates parallelized:** Added `CONCURRENCY = 4` constant to `routes/updates.js`. Both `processFlatUpdates` and `processGroupedUpdates` now process batches of 4 in parallel via `Promise.allSettled`. `processAtomicGroup` and `rollbackAtomicSuccesses` remain sequential (required for atomic rollback). ~3.3x speedup for 10-team bulk edits (~8s -> ~2.4s).
+  - **Fix #4 — searchSchedule no longer clears table:** Removed `teams: {}` and `unmatchedShifts: []` from `searchSchedule` initial setState in `use-schedule.ts`. Old data now stays visible during loading and is atomically replaced when the API responds. On error, old data remains visible with an error banner.
+  - **Fix #5 — Bulk edit error preserves user edits:** Partial failure `setTimeout` in `updateAllTeams` (`use-schedule.ts`) now only clears the modal overlay. Removed `bulkEditMode: false` and `editedValues: {}` from the callback. User stays in bulk edit mode after partial failure and can retry or adjust values. Success path still correctly exits bulk edit mode.
+  - **Fix #6 — Mutation guard for all edit paths:** Added `mutating: boolean` to `ScheduleState` in `use-schedule.ts`. Set `true`/`false` via `finally` blocks in `updateTeam`, `updateAllTeams`, and `updateUnmatched`. Wired through `SchedulePage.tsx` to disable: SearchBar (via `loading` prop), BulkControls "Edit All" button (new `disabled` prop), and all TeamRow Edit buttons (via `TeamsTable` `mutating` prop pass-through). Prevents double-reload races and concurrent edit conflicts.
+- Deploy/Config:
+  - No new env vars. Fix #1 uses existing `env.requestTimeoutMs` (default 12000ms). Fix #3's concurrency is a code constant (not env-configurable).
+- Validation:
+  - Code review passed for all items. All 28 existing API tests pass.
+- Open/Next:
+  - **Fix #3 defect resolved:** Non-atomic branch in `processGroupedUpdates` now wrapped in try/catch (lines 354-384), returning a failure result object on error. The `batch.map()` callback never rejects.
+  - Remaining critical item #7 from `CODE_REVIEW_FIXES.md`.
+  - Minor gap: `UnmatchedBanner` Edit buttons not disabled during mutations (low risk, consider follow-up).
+
+## 2026-02-10
+- Scope:
+  - Stabilized post-redesign UI deployment/runtime behavior and fixed a bulk-edit regression.
+- Completed:
+  - Fixed Netlify build/deploy alignment for Vite UI:
+    - `.github/workflows/deploy-ui-netlify.yml` now installs dependencies, builds `app/ui`, and deploys `app/ui/dist`.
+    - Added workflow guard to fail fast if `SCHEDULER_API_BASE_URL` secret is missing.
+    - `netlify.toml` now uses `base = "app/ui"` and `publish = "dist"` to avoid doubled publish paths.
+  - Hardened frontend API base resolution in `app/ui/src/lib/api.ts`:
+    - Priority: `VITE_API_BASE_URL` -> runtime `window.__SCHEDULER_API_BASE__` -> production Cloud Run fallback.
+    - Prevents accidental Netlify-origin `/api/*` calls when API base env is absent.
+  - Fixed Edit All Teams false "No changes to save" behavior:
+    - Bulk row edits are now wired into shared bulk state (`SchedulePage` -> `TeamsTable` -> `TeamRow`).
+    - Save now correctly detects changed teams and submits grouped bulk updates.
+- Deploy/Config:
+  - Netlify site settings must match Vite output:
+    - Base directory: `app/ui`
+    - Build command: `npm run build`
+    - Publish directory: `dist`
+  - No Cloud Run traffic change is required for Netlify 404 `/api/*` symptoms; that issue is UI API-base configuration.
+- Validation:
+  - `app/ui` checks passing: `npm run lint`, `npm run build`.
+  - Build output generated successfully after fixes.
+- Open/Next:
+  - Confirm `SCHEDULER_API_BASE_URL` secret points to canonical Cloud Run URL.
+  - Keep generated artifact `app/ui/tsconfig.tsbuildinfo` out of commits unless intentionally tracked.
+
 ## 2026-02-09
 - Scope:
   - Merged the UI redesign workstream and validated both backend and frontend checks.

@@ -166,6 +166,8 @@ function toSuccess(index, result) {
   };
 }
 
+const CONCURRENCY = 4;
+
 async function processFlatUpdates({ updates, slingClient, env, requestId }) {
   if (!Array.isArray(updates) || updates.length === 0) {
     throw new ApiError('updates must be a non-empty array', {
@@ -174,24 +176,31 @@ async function processFlatUpdates({ updates, slingClient, env, requestId }) {
     });
   }
 
-  const results = [];
+  const results = new Array(updates.length);
 
-  for (let index = 0; index < updates.length; index += 1) {
-    const item = updates[index];
-    const occurrenceId = item?.occurrenceId;
-
-    try {
-      const single = await performSingleUpdate({
-        occurrenceId,
-        payload: item,
-        slingClient,
-        env,
-        requestId
-      });
-      results.push(toSuccess(index, single));
-    } catch (error) {
-      results.push(toFailure(occurrenceId, error, index));
-    }
+  for (let start = 0; start < updates.length; start += CONCURRENCY) {
+    const batch = updates.slice(start, start + CONCURRENCY);
+    const batchResults = await Promise.allSettled(
+      batch.map(async (item, batchIndex) => {
+        const index = start + batchIndex;
+        const occurrenceId = item?.occurrenceId;
+        try {
+          const single = await performSingleUpdate({
+            occurrenceId,
+            payload: item,
+            slingClient,
+            env,
+            requestId
+          });
+          return toSuccess(index, single);
+        } catch (error) {
+          return toFailure(occurrenceId, error, index);
+        }
+      })
+    );
+    batchResults.forEach((settled, batchIndex) => {
+      results[start + batchIndex] = settled.value;
+    });
   }
 
   const summary = buildBulkSummary(results);
@@ -333,40 +342,60 @@ async function processGroupedUpdates({ groups, slingClient, env, requestId }) {
     });
   }
 
-  const results = [];
+  const results = new Array(groups.length);
 
-  for (let index = 0; index < groups.length; index += 1) {
-    const group = groups[index];
-    const atomic = group?.atomic !== false;
+  for (let start = 0; start < groups.length; start += CONCURRENCY) {
+    const batch = groups.slice(start, start + CONCURRENCY);
+    const batchResults = await Promise.allSettled(
+      batch.map(async (group, batchIndex) => {
+        const index = start + batchIndex;
+        const atomic = group?.atomic !== false;
 
-    if (!atomic) {
-      const flat = await processFlatUpdates({
-        updates: group?.updates || [],
-        slingClient,
-        env,
-        requestId
-      });
-      results.push({
-        index,
-        groupId: group?.groupId || `group-${index + 1}`,
-        status: flat.summary === 'ok' ? 'success' : 'failed',
-        atomic: false,
-        rolledBack: false,
-        counts: flat.counts,
-        rollback: { status: 'not_applicable', failures: [] },
-        results: flat.results
-      });
-      continue;
-    }
+        if (!atomic) {
+          try {
+            const flat = await processFlatUpdates({
+              updates: group?.updates || [],
+              slingClient,
+              env,
+              requestId
+            });
+            return {
+              index,
+              groupId: group?.groupId || `group-${index + 1}`,
+              status: flat.summary === 'ok' ? 'success' : 'failed',
+              atomic: false,
+              rolledBack: false,
+              counts: flat.counts,
+              rollback: { status: 'not_applicable', failures: [] },
+              results: flat.results
+            };
+          } catch (error) {
+            return {
+              index,
+              groupId: group?.groupId || `group-${index + 1}`,
+              status: 'failed',
+              atomic: false,
+              rolledBack: false,
+              counts: { total: 0, success: 0, failed: 0 },
+              failure: { code: error?.code || 'GROUP_PROCESSING_FAILED', message: error?.message },
+              rollback: { status: 'not_applicable', failures: [] },
+              results: []
+            };
+          }
+        }
 
-    const atomicResult = await processAtomicGroup({
-      group,
-      groupIndex: index,
-      slingClient,
-      env,
-      requestId
+        return processAtomicGroup({
+          group,
+          groupIndex: index,
+          slingClient,
+          env,
+          requestId
+        });
+      })
+    );
+    batchResults.forEach((settled, batchIndex) => {
+      results[start + batchIndex] = settled.value;
     });
-    results.push(atomicResult);
   }
 
   const successGroups = results.filter((group) => group.status === 'success').length;
