@@ -45,9 +45,13 @@ const timestampFormatter = new Intl.DateTimeFormat('en-US', {
 });
 
 function formatTimestamp(iso: string): string {
-  const date = new Date(iso);
-  // Intl.DateTimeFormat produces "February 13, 2026 at 6:10 PM" in most locales
-  return timestampFormatter.format(date);
+  try {
+    const date = new Date(iso);
+    if (isNaN(date.getTime())) return iso || 'Unknown time';
+    return timestampFormatter.format(date);
+  } catch {
+    return iso || 'Unknown time';
+  }
 }
 
 // ---------------------------------------------------------------------------

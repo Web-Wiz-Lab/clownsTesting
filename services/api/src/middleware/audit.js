@@ -133,10 +133,14 @@ async function createFirestoreAuditStore(env) {
         }
       }
       const snapshot = await q.get();
-      const entries = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const entries = snapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          timestamp: data.timestamp?.toDate?.() ?? data.timestamp
+        };
+      });
       const lastDoc = snapshot.docs[snapshot.docs.length - 1];
       return {
         entries,

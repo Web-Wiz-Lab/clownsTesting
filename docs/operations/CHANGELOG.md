@@ -233,3 +233,19 @@ Reviewer: `claude --resume a342c71c-5844-4f00-a199-bcce888fb39f`
 // main agent: claude --resume ee1a6309-df6a-4f23-8e0c-982d948396ac
 // implemented by: claude --resume 3d48e26c-45e3-46c9-a0f2-2b1949c57f33
 // final reviewer: claude --resume 43f6ffed-ccf8-47b7-8597-002e23dce666
+
+## 2026-02-13 — Activity & Changelog Drawer Hotfix
+- Scope:
+  - Fixed two post-deploy bugs preventing Activity and What's New drawers from functioning.
+- Completed:
+  - **Bug #1 — Drawers not opening (click does nothing):** `ActivityTriggerButton` and `ChangelogTriggerButton` were plain function components that did not forward `ref` or spread props. Radix's `<SheetTrigger asChild>` merges `onClick`, `ref`, and ARIA attributes onto its child via `Slot`, but both wrapper components silently discarded them. Converted both to `React.forwardRef` components that spread `...props` onto the inner `<Button>`.
+  - **Bug #2 — Activity drawer crashes to blank screen:** Firestore stores `new Date()` as a Firestore `Timestamp` object. On read, `doc.data().timestamp` returned a `Timestamp`, not a JS `Date`. `mapAuditEntry` checked `instanceof Date` (false), fell through to `String()` producing `"[object Object]"`. Frontend's `new Date("[object Object]")` created `Invalid Date`, and `Intl.DateTimeFormat.format()` threw `RangeError`, crashing the React tree. Fixed at three layers:
+    - Firestore query (`audit.js`): converts Timestamp to JS Date via `.toDate()` at read time.
+    - API mapper (`audit-log.js`): defensive fallback chain handling Date, Firestore Timestamp, string, or missing values.
+    - Frontend (`ActivityDrawer.tsx`): `formatTimestamp` now catches invalid dates gracefully instead of crashing.
+- Deploy/Config:
+  - No new env vars. Commit touches both `app/ui/**` and `services/api/**`, triggering both Netlify and Cloud Run workflows. After Cloud Run deploy, route 100% traffic to the new revision for the API timestamp fix to take effect.
+- Validation:
+  - API tests: 55/55 passing. UI lint clean, build successful.
+- Open/Next:
+  - Confirm both drawers open and display data correctly in production after deploy.

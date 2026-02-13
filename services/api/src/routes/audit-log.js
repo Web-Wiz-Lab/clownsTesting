@@ -38,7 +38,13 @@ export function mapAuditEntry(raw) {
 
   return {
     id: raw.id || raw.requestId,
-    timestamp: raw.timestamp instanceof Date ? raw.timestamp.toISOString() : String(raw.timestamp || ''),
+    timestamp: raw.timestamp instanceof Date
+      ? raw.timestamp.toISOString()
+      : typeof raw.timestamp?.toDate === 'function'
+        ? raw.timestamp.toDate().toISOString()
+        : typeof raw.timestamp === 'string' && raw.timestamp
+          ? raw.timestamp
+          : new Date().toISOString(),
     outcome: raw.outcome || 'unknown',
     type: isBulk ? 'bulk' : 'single',
     summary,
