@@ -2,9 +2,12 @@
   {
     "date": "2026-02-13",
     "entries": [
+      "Added a Recent Activity panel so you can see your latest schedule changes at a glance.",
+      "Added a What's New panel to keep you informed about system improvements.",
+      "Fixed an issue that could prevent the Activity and What's New panels from opening.",
+      "Improved how timestamps are displayed in the Recent Activity feed.",
       "Improved how the system tracks and logs scheduling changes for faster issue resolution.",
-      "Optimized large schedule saves to be more reliable.",
-      "Added a new activity tracking system to record all scheduling changes."
+      "Optimized large schedule saves to be more reliable."
     ]
   },
   {
@@ -12,6 +15,8 @@
     "entries": [
       "Scheduling saves now process faster with improved performance.",
       "Added safeguards to preserve your edits when a save partially succeeds.",
+      "Your data now stays visible while a new search is loading instead of briefly disappearing.",
+      "Buttons are now disabled while a save is in progress to prevent accidental double-submissions.",
       "Improved system resilience for more reliable schedule updates."
     ]
   },
@@ -19,7 +24,31 @@
     "date": "2026-02-10",
     "entries": [
       "Fixed an issue where the app could briefly show a blank screen while loading schedule data.",
-      "Improved how the app connects to the scheduling service."
+      "Fixed a bug where Edit All Teams could incorrectly report no changes to save.",
+      "Improved how the app connects to the Sling service."
+    ]
+  },
+  {
+    "date": "2026-02-09",
+    "entries": [
+      "Launched a fresh, modern interface for the schedule manager.",
+      "Added safeguards to prevent duplicate updates when saving schedules.",
+      "Improved deployment reliability to prevent service interruptions."
+    ]
+  },
+  {
+    "date": "2026-02-07",
+    "entries": [
+      "Added system health monitoring for faster issue detection.",
+      "Save operations are now protected against accidental duplicate submissions."
+    ]
+  },
+  {
+    "date": "2026-02-06",
+    "entries": [
+      "Improved how error messages are displayed when a schedule save encounters an issue.",
+      "Added automatic alerts to notify dev immediately when something needs attention.",
+      "Edit All now correctly handles teams independently so one failure does not block others."
     ]
   }
 ]
