@@ -1,3 +1,4 @@
+import * as React from 'react';
 import { useCallback, useRef } from 'react';
 import {
   Sheet,
@@ -162,27 +163,25 @@ function LoadingState() {
 // ---------------------------------------------------------------------------
 // Default trigger button
 // ---------------------------------------------------------------------------
-export function ChangelogTriggerButton({
-  investigating,
-}: {
-  investigating?: boolean;
-}) {
-  return (
-    <Button variant="ghost" size="sm" className="relative gap-1.5">
-      <Megaphone className="h-4 w-4" />
-      {"What's New"}
-      {investigating && (
-        <span
-          className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5"
-          aria-label="New notification"
-        >
-          <span className="absolute inline-flex h-full w-full animate-pulse rounded-full bg-destructive opacity-75" />
-          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-destructive" />
-        </span>
-      )}
-    </Button>
-  );
-}
+export const ChangelogTriggerButton = React.forwardRef<
+  HTMLButtonElement,
+  React.ComponentPropsWithoutRef<typeof Button> & { investigating?: boolean }
+>(({ investigating, ...rest }, ref) => (
+  <Button ref={ref} variant="ghost" size="sm" className="relative gap-1.5" {...rest}>
+    <Megaphone className="h-4 w-4" />
+    {"What's New"}
+    {investigating && (
+      <span
+        className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5"
+        aria-label="New notification"
+      >
+        <span className="absolute inline-flex h-full w-full animate-pulse rounded-full bg-destructive opacity-75" />
+        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-destructive" />
+      </span>
+    )}
+  </Button>
+));
+ChangelogTriggerButton.displayName = 'ChangelogTriggerButton';
 
 // ---------------------------------------------------------------------------
 // Main component

@@ -1,3 +1,4 @@
+import * as React from 'react';
 import { useState, useCallback } from 'react';
 import {
   Sheet,
@@ -288,14 +289,16 @@ export function ActivityLoadingState() {
 // ---------------------------------------------------------------------------
 // Default trigger button
 // ---------------------------------------------------------------------------
-export function ActivityTriggerButton() {
-  return (
-    <Button variant="ghost" size="sm" className="gap-1.5">
-      <Clock className="h-4 w-4" />
-      Activity
-    </Button>
-  );
-}
+export const ActivityTriggerButton = React.forwardRef<
+  HTMLButtonElement,
+  React.ComponentPropsWithoutRef<typeof Button>
+>((props, ref) => (
+  <Button ref={ref} variant="ghost" size="sm" className="gap-1.5" {...props}>
+    <Clock className="h-4 w-4" />
+    Activity
+  </Button>
+));
+ActivityTriggerButton.displayName = 'ActivityTriggerButton';
 
 // ---------------------------------------------------------------------------
 // Main component
