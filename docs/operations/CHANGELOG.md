@@ -249,3 +249,79 @@ Reviewer: `claude --resume a342c71c-5844-4f00-a199-bcce888fb39f`
   - API tests: 55/55 passing. UI lint clean, build successful.
 - Open/Next:
   - Confirm both drawers open and display data correctly in production after deploy.
+
+
+## 2026-02-20 — 3-Layer Bulk Update Resilience
+- Scope:
+  - Implemented 3-layer retry and fallback system for grouped bulk updates to recover from Sling API HTTP 417 concurrent modification locks. Motivated by incident `f9cf6543` (2/19/26): 6 of 13 teams failed during "Edit All Teams" because Sling locks all shifts sharing the same date/location/position during a PUT, rejecting concurrent writes with HTTP 417. Previous `CONCURRENCY=2` batching caused self-inflicted lock collisions, and 417 was not in the Sling client's retry list, so every rejection was immediate and final.
+- Completed:
+  - **Layer 1 — Sequential processing (`CONCURRENCY=1`):** Changed `CONCURRENCY` from `2` to `1` in `services/api/src/routes/updates.js:180`. Groups are now processed one-at-a-time, eliminating self-inflicted 417 locks between our own concurrent batches. The existing `processFlatUpdates` batching loop naturally becomes sequential.
+  - **Layer 2 — Retry failed groups after initial pass:** Extracted `executeSingleGroup()` from the old `Promise.allSettled` callback into a standalone async function reusable by both initial pass and retry. Replaced the batching loop in `processGroupedUpdates` with a simple sequential `for` loop. After all groups finish, failed indices are collected and each is retried one-at-a-time in original order. Natural backoff: processing all groups sequentially means seconds have elapsed since the first failures, giving Sling's locks time to release.
+  - **Layer 3 — Calendar-based fallback (event ID endpoint):** For groups still failing after Layer 2 retry, uses a different Sling endpoint pattern validated in Postman. Instead of `PUT /v1/shifts/{occurrenceId}` (colon-suffixed ID), fetches the raw calendar shift via `slingClient.getCalendarShifts(date)` (GET, no lock), matches by `user.id`, strips the `:date` suffix to get the base `eventId`, and PUTs to `PUT /v1/shifts/{eventId}`. New functions: `extractDateFromOccurrenceId()` parses `"4709706601:2026-02-21"` → `"2026-02-21"`. `extractEventId()` strips date suffix: `"4709706601:2026-02-21"` → `"4709706601"`. `processCalendarFallback()` orchestrates the full fallback flow with atomic semantics (both shifts in a team must succeed). `rollbackCalendarFallback()` reverses successful event PUTs if partial failure occurs within a group, mirroring the existing `rollbackAtomicSuccesses` pattern.
+  - **Revised `processGroupedUpdates` flow:** Layer 1 (sequential initial pass) → collect failed indices → Layer 2 (retry each failed group) → collect still-failed indices → Layer 3 (calendar fallback for each) → build final summary. Successful retry/fallback results replace failed results at the same index. If all layers fail, original failure result is preserved. Frontend contract unchanged.
+  - **Key reuse:** `buildOutboundShift()` works for Layer 3 because it spreads the calendar object, sets `id` to the eventId, and builds `dtstart`/`dtend` from the calendar shift's date/timezone + update's times. `slingClient.updateShift()` works with event IDs (no colon) since it just URL-encodes whatever ID is passed. `processAtomicGroup()` is reused as-is for Layer 2 retry via `executeSingleGroup()`.
+  - **7 new tests in `services/api/test/updates.test.js`:** (1) Layer 2: retry succeeds on second attempt after 417. (2) Layer 2: retry also fails, original failure preserved. (3) Layer 2: retries in original failure order (3 groups, groups 1 & 3 fail, verify retry order). (4) Layer 3: calendar fallback succeeds when occurrence PUT fails but event PUT succeeds. (5) Layer 3: partial failure triggers rollback — first shift succeeds via event endpoint, second fails, verify rollback PUT with original calendar object. (6) Layer 3: returns null when calendar has no matching user — original failure preserved. (7) Integration: all 3 layers exercised end-to-end — group fails initial + retry, succeeds on calendar fallback.
+- Deploy/Config:
+  - No new env vars. No Sling client changes (`sling.js` unchanged). No frontend changes. Backend-only change in `services/api/src/routes/updates.js`. Redeploy API to activate.
+- Validation:
+  - API tests: 62/62 passing (55 existing + 7 new). No regressions. UI lint clean, build successful (462.90 KB production bundle).
+- Open/Next:
+  - Monitor next multi-team bulk edit for recurrence. With Layer 1 eliminating self-inflicted 417s, the only remaining trigger would be an external user editing the same schedule in Sling's web UI simultaneously.
+  - ~~Consider adding HTTP 417 to the Sling client's `isTransientStatus()` retry list~~ — Done, see entry below.
+  - Update incident `f9cf6543` status from "Root cause identified" to "Fix deployed" after confirming successful production deploy.
+
+## 2026-02-20 — Sling Client: Retry HTTP 417
+- Scope:
+  - Added HTTP 417 (concurrent modification lock) to the Sling client's automatic retry list. Complements the 3-layer resilience system by catching 417s at the HTTP layer for all code paths, including single-shift updates.
+- Completed:
+  - Added `status === 417` to `isTransientStatus()` in `services/api/src/clients/sling.js:4`. The client now retries 417 with its existing exponential backoff (250ms, 500ms) before surfacing the error.
+- Deploy/Config:
+  - No new env vars. Redeploy API to activate.
+- Validation:
+  - API tests: 62/62 passing.
+
+## 2026-02-20 — Bulk Update Progress Indicator (Preview)
+- Scope:
+  - New dynamic status ticker component for the "Edit All Teams" modal, replacing the static "Processing Request" spinner. Built in the dev preview page first for visual approval before production wiring.
+- Completed:
+  - **New component `app/ui/src/features/schedule/BulkUpdateProgress.tsx`:** Animated progress indicator with 5 scripted message phases (initialization, per-team processing, verification, recovery simulation, finalization). Variable-duration `setTimeout` chain with 3 timing buckets (short/medium/long) and anti-repetition logic. Weighted progress bar (team messages count 3x). Completed log showing last 4 messages with fade hierarchy. Hero spinner icon swaps to checkmark on completion. Phase labels, team counter, `aria-live` announcements, and `role="progressbar"` accessibility.
+  - **Modified `app/ui/src/features/preview/PreviewPage.tsx`:** Added "Bulk Progress" control section with 2 preview states: `modal-bulk-progress` (13 teams, full simulation) and `modal-bulk-progress-small` (4 teams, quick demo). Both render inside a `DialogContent` wrapper with screen-reader-only `DialogTitle` and `DialogDescription`.
+  - **Bug fix — duplicate log entries:** Moved `setCompletedMessages` and `setTeamsProcessed` out of the `setCurrentIndex` updater function into the `advance` function body using a ref. React Strict Mode double-invokes state updaters to check purity, which caused each completed message to appear twice.
+- Deploy/Config:
+  - No deploy needed. Preview-only — no production wiring yet. Access via `npm run dev` then `http://localhost:5173/preview` → "Bulk Progress" section.
+- Validation:
+  - UI lint clean, build successful. API tests unaffected (no backend changes).
+- Open/Next:
+  - Wire `BulkUpdateProgress` into `OperationModal` / `useSchedule` for production bulk edits, replacing the static spinner during `updateAllTeams`.
+
+## 2026-02-20 — Bulk Update Progress Indicator (Production Wiring)
+- Scope:
+  - Wired the `BulkUpdateProgress` component into the real "Edit All Teams" flow so the animated status ticker runs alongside the actual API call. The animation syncs to the API response: speeding up remaining messages when the API finishes fast, or seamlessly looping through ambient messages if the API is slow. Replaced the static "Processing Request" spinner modal with an interactive progress modal that the user dismisses manually via a full-width button.
+- Completed:
+  - **`app/ui/src/features/schedule/BulkUpdateProgress.tsx` — Three-mode sync logic via new `apiDone` prop:**
+    - Added `apiDone?: boolean` prop with three behavioral modes: (A) `undefined` = preview mode (existing behavior, animation runs on its own timer), (B) `false` = API still working (animation loops through ambient messages if scripted sequence exhausts, progress capped at 95%), (C) `true` = API responded (speed-up mode, remaining messages advance at 100-150ms each, then shows done state).
+    - Added `LOOPING_MESSAGES` constant pool: "Confirming changes", "Verifying schedule integrity", "Cross-referencing calendar", "Syncing changes" — cycles at organic variable timing so the ticker never freezes during slow API responses.
+    - Added `speedUpRef`, `loopingRef`, `loopIndexRef` refs to control mode transitions without re-renders. `getDuration()` returns 100-150ms when `speedUpRef.current` is true.
+    - `useEffect` on `apiDone` sets `speedUpRef.current = true` and, if looping, kicks an immediate advance to exit the loop and reach done state.
+    - Dismiss button changed from `size="sm"` to `w-full max-w-sm rounded-xl` — full-width with rounded corners.
+  - **`app/ui/src/features/schedule/OperationModal.tsx` — Bulk rendering mode:**
+    - Added `bulk` prop (`{ teamNames, failedTeams, apiDone, onDismiss }`). When present, renders `BulkUpdateProgress` instead of the static spinner/icon/message.
+    - X (close) button hidden via `[&>button]:hidden` on `DialogContent` — user can only dismiss via the Done/Close button inside `BulkUpdateProgress`.
+    - `onOpenChange` is a no-op in bulk mode (prevents ESC key dismissal during processing).
+    - Screen-reader-only `DialogTitle` and `DialogDescription` for accessibility.
+    - Non-bulk rendering path (single-team updates, unmatched shifts) unchanged.
+  - **`app/ui/src/hooks/use-schedule.ts` — Extended modal state + dismiss action:**
+    - Extended `modal` type with optional `teamNames?: string[]`, `failedTeams?: string[]`, `apiDone?: boolean`.
+    - New `dismissModal` action: clears modal, exits bulk edit mode, resets edited values. Added to `ScheduleActions` interface and returned actions object.
+    - Rewrote `updateAllTeams` modal lifecycle: initial setState includes `teamNames` (from changed teams), `failedTeams: []`, `apiDone: false`. Success path sets `apiDone: true` on existing modal (no type change, no auto-dismiss timer). Partial failure path sets `apiDone: true` and populates `failedTeams` from `result.results.filter(r => r.status === 'failed')`. Request error (catch) path sets `apiDone: true` with all team names as failed.
+    - Removed all `setTimeout` auto-dismiss calls — user now controls modal dismissal via the BulkUpdateProgress button, which calls `dismissModal`.
+  - **`app/ui/src/features/schedule/SchedulePage.tsx` — Prop wiring:**
+    - `OperationModal` now receives `bulk` prop when `state.modal.teamNames` exists, passing through `teamNames`, `failedTeams`, `apiDone`, and `actions.dismissModal`. Single-team updates and unmatched shift updates (which don't set `teamNames` on modal) continue using the existing static modal behavior unchanged.
+- Deploy/Config:
+  - No new env vars. No backend changes. Frontend-only change across 4 files. Redeploy UI via Netlify to activate.
+- Validation:
+  - UI lint clean (`npm run lint`), build successful (`npm run build`, 469.93 KB production bundle).
+  - Preview page unchanged — `BulkUpdateProgress` receives `apiDone={undefined}` (preview mode), all 3 preview states render correctly.
+- Open/Next:
+  - Manual production test after deploy: trigger "Edit All Teams" → confirm animated ticker runs, API sync works (speed-up on fast response, looping on slow), dismiss button is full-width, no X button visible during processing.
+  - Monitor for edge case: if user navigates away during bulk update, modal state is orphaned. Consider cleanup on route change if this becomes an issue.

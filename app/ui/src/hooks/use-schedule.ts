@@ -22,7 +22,13 @@ export interface ScheduleState {
   editingTeam: string | null;
   editedValues: Record<string, EditValues>;
   unmatchedEditing: number | null;
-  modal: { message: string; type: 'loading' | 'success' | 'error' } | null;
+  modal: {
+    message: string;
+    type: 'loading' | 'success' | 'error';
+    teamNames?: string[];
+    failedTeams?: string[];
+    apiDone?: boolean;
+  } | null;
 }
 
 export interface ScheduleActions {
@@ -34,6 +40,7 @@ export interface ScheduleActions {
   enterBulkEditMode: () => void;
   cancelBulkEdit: () => void;
   updateAllTeams: (changedTeams: Array<{ teamName: string; values: EditValues }>) => Promise<void>;
+  dismissModal: () => void;
   editUnmatched: (index: number) => void;
   cancelUnmatched: (index: number) => void;
   updateUnmatched: (index: number, values: EditValues) => Promise<void>;
@@ -312,6 +319,15 @@ export function useSchedule(): [ScheduleState, ScheduleActions] {
     }));
   }, []);
 
+  const dismissModal = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      modal: null,
+      bulkEditMode: false,
+      editedValues: {},
+    }));
+  }, []);
+
   const updateAllTeams = useCallback(
     async (changedTeams: Array<{ teamName: string; values: EditValues }>) => {
       if (changedTeams.length === 0) {
@@ -322,7 +338,13 @@ export function useSchedule(): [ScheduleState, ScheduleActions] {
       setState((prev) => ({
         ...prev,
         mutating: true,
-        modal: { message: 'Processing Request', type: 'loading' },
+        modal: {
+          message: 'Processing Request',
+          type: 'loading',
+          teamNames: changedTeams.map((t) => t.teamName),
+          failedTeams: [],
+          apiDone: false,
+        },
       }));
 
       try {
@@ -355,24 +377,21 @@ export function useSchedule(): [ScheduleState, ScheduleActions] {
         }
 
         if (result.summary === 'ok') {
+          // Signal API done — BulkUpdateProgress will speed-up and show "Done" button
           setState((prev) => ({
             ...prev,
-            modal: { message: 'Shifts Updated Successfully', type: 'success' },
+            modal: prev.modal ? { ...prev.modal, apiDone: true } : prev.modal,
           }));
-          setTimeout(() => {
-            setState((prev) => ({ ...prev, modal: null, bulkEditMode: false, editedValues: {} }));
-          }, 1500);
         } else {
+          // Partial failure — signal done with failed teams
+          const failed = Array.isArray(result.results)
+            ? result.results.filter((r: { status: string }) => r.status === 'failed').map((r: { groupId: string }) => r.groupId)
+            : [];
+
           setState((prev) => ({
             ...prev,
-            modal: {
-              message: `Some teams were not updated (${result.counts.success}/${result.counts.total} teams).`,
-              type: 'error',
-            },
+            modal: prev.modal ? { ...prev.modal, apiDone: true, failedTeams: failed } : prev.modal,
           }));
-          setTimeout(() => {
-            setState((prev) => ({ ...prev, modal: null }));
-          }, 2500);
 
           const failureMessage = summarizeGroupedFailure(
             result,
@@ -395,13 +414,13 @@ export function useSchedule(): [ScheduleState, ScheduleActions] {
           });
         }
       } catch (error) {
+        // Complete failure — mark all teams as failed
         setState((prev) => ({
           ...prev,
-          modal: { message: 'Could not save team updates right now.', type: 'error' },
+          modal: prev.modal
+            ? { ...prev.modal, apiDone: true, failedTeams: changedTeams.map((t) => t.teamName) }
+            : prev.modal,
         }));
-        setTimeout(() => {
-          setState((prev) => ({ ...prev, modal: null }));
-        }, 3000);
 
         const userMessage = explainApiError(error, 'Could not update teams right now.');
         showError(userMessage);
@@ -522,6 +541,7 @@ export function useSchedule(): [ScheduleState, ScheduleActions] {
     enterBulkEditMode,
     cancelBulkEdit,
     updateAllTeams,
+    dismissModal,
     editUnmatched,
     cancelUnmatched,
     updateUnmatched,

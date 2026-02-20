@@ -39,6 +39,19 @@ default, destructive, outline, secondary, ghost, link | Sizes: default, sm, lg, 
 - Notification dot pattern: `absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5` with animate-pulse inner span + solid outer span
 - Warning banner: `rounded-2xl border-warning-300 bg-warning-50 p-4` with Radio icon in warning-200 circle
 
+## BulkUpdateProgress Component
+- Located at `src/features/schedule/BulkUpdateProgress.tsx`
+- Status ticker that cycles scripted messages during bulk team updates
+- Uses weighted progress (team messages count 3x) for smoother progress bar
+- Phase labels (init/teams/verify/finalize) shown as subtitle under heading
+- Hero icon: Loader2 spinner in muted bg (loading) / CheckCircle2 in success-50 bg (done)
+- Progress bar uses `role="progressbar"` with proper ARIA attributes
+- Status messages use `aria-live="polite"` for screen reader announcements
+- Completed log wrapped in `rounded-xl bg-muted/40 border border-border/30` card
+- Older log items fade to `text-muted-foreground/60`, newest stays full opacity
+- PreviewPage wraps in Dialog with sr-only DialogTitle + DialogDescription for a11y
+- Current status dot uses `bg-primary` (not success) to differentiate active vs completed items
+
 ## CSS Custom Colors
 - success-50 through success-950 (mint green)
 - warning-50 through warning-950 (sunny yellow-orange)

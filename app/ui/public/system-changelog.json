@@ -1,5 +1,14 @@
 [
   {
+    "date": "2026-02-20",
+    "entries": [
+      "Resolved the issue where some teams failed to save during Edit All — the system now has multiple fallback strategies to automatically retry and recover.",
+      "An AI agent now confirms that shift updates were successfully updated and uses retry methods in case of failure",
+      "Edit All Teams now shows a real-time progress view with per-team status updates instead of a static loading spinner."
+    ],
+    "clearInvestigating": true
+  },
+  {
     "date": "2026-02-13",
     "entries": [
       "Added a Recent Activity panel so you can see your latest schedule changes at a glance.",

@@ -17,12 +17,14 @@ import {
 
 // Real production components -- schedule
 import { OperationModal } from '@/features/schedule/OperationModal';
+import { BulkUpdateProgress } from '@/features/schedule/BulkUpdateProgress';
 
 // shadcn/ui
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import {
   Collapsible,
   CollapsibleContent,
@@ -42,6 +44,7 @@ import {
   ChevronDown,
   ChevronRight,
   Inbox,
+  Layers,
 } from 'lucide-react';
 
 // Shared no-op callback
@@ -136,6 +139,9 @@ const MOCK_CHANGELOG_DAYS: ChangelogDay[] = [
   },
 ];
 
+const MOCK_13_TEAMS = Array.from({ length: 13 }, (_, i) => `Team ${i + 1}`);
+const MOCK_4_TEAMS = ['Team A', 'Team B', 'Team C', 'Team D'];
+
 // ---------------------------------------------------------------------------
 // State keys
 // ---------------------------------------------------------------------------
@@ -164,7 +170,12 @@ type AlertModalState =
   | 'modal-success'
   | 'modal-error';
 
-type PreviewState = ActivityState | ChangelogState | AlertModalState;
+type BulkProgressState =
+  | 'modal-bulk-progress'
+  | 'modal-bulk-progress-small'
+  | 'modal-bulk-progress-partial';
+
+type PreviewState = ActivityState | ChangelogState | AlertModalState | BulkProgressState;
 
 // ---------------------------------------------------------------------------
 // Control panel option definitions
@@ -200,6 +211,12 @@ const ALERT_MODAL_OPTIONS: ControlOption<AlertModalState>[] = [
   { key: 'modal-loading', label: 'Modal: loading' },
   { key: 'modal-success', label: 'Modal: success' },
   { key: 'modal-error', label: 'Modal: error' },
+];
+
+const BULK_PROGRESS_OPTIONS: ControlOption<BulkProgressState>[] = [
+  { key: 'modal-bulk-progress', label: '13 teams (full)' },
+  { key: 'modal-bulk-progress-small', label: '4 teams (quick)' },
+  { key: 'modal-bulk-progress-partial', label: 'Partial failure' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -519,6 +536,84 @@ function PreviewContent({ activeState, onClearState }: { activeState: PreviewSta
     );
   }
 
+  // -- Bulk progress states ---------------------------------------------------
+
+  if (activeState === 'modal-bulk-progress') {
+    return (
+      <>
+        <div className="flex flex-col items-center justify-center h-full text-center px-6">
+          <p className="text-sm text-muted-foreground">
+            The bulk progress modal overlay is shown above.
+          </p>
+        </div>
+        <Dialog open={true} onOpenChange={() => onClearState()}>
+          <DialogContent className="sm:max-w-md rounded-2xl" aria-describedby="bulk-progress-desc-13">
+            <DialogTitle className="sr-only">Bulk Update Progress</DialogTitle>
+            <DialogDescription id="bulk-progress-desc-13" className="sr-only">
+              Updating 13 teams. Progress is shown below.
+            </DialogDescription>
+            <BulkUpdateProgress
+              key="bulk-13"
+              teamNames={MOCK_13_TEAMS}
+              onDismiss={onClearState}
+            />
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  }
+
+  if (activeState === 'modal-bulk-progress-small') {
+    return (
+      <>
+        <div className="flex flex-col items-center justify-center h-full text-center px-6">
+          <p className="text-sm text-muted-foreground">
+            The bulk progress modal overlay is shown above.
+          </p>
+        </div>
+        <Dialog open={true} onOpenChange={() => onClearState()}>
+          <DialogContent className="sm:max-w-md rounded-2xl" aria-describedby="bulk-progress-desc-4">
+            <DialogTitle className="sr-only">Bulk Update Progress</DialogTitle>
+            <DialogDescription id="bulk-progress-desc-4" className="sr-only">
+              Updating 4 teams. Progress is shown below.
+            </DialogDescription>
+            <BulkUpdateProgress
+              key="bulk-4"
+              teamNames={MOCK_4_TEAMS}
+              onDismiss={onClearState}
+            />
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  }
+
+  if (activeState === 'modal-bulk-progress-partial') {
+    return (
+      <>
+        <div className="flex flex-col items-center justify-center h-full text-center px-6">
+          <p className="text-sm text-muted-foreground">
+            The bulk progress modal overlay is shown above.
+          </p>
+        </div>
+        <Dialog open={true} onOpenChange={() => onClearState()}>
+          <DialogContent className="sm:max-w-md rounded-2xl" aria-describedby="bulk-progress-desc-partial">
+            <DialogTitle className="sr-only">Bulk Update Progress</DialogTitle>
+            <DialogDescription id="bulk-progress-desc-partial" className="sr-only">
+              Updating 13 teams with partial failure. Progress is shown below.
+            </DialogDescription>
+            <BulkUpdateProgress
+              key="bulk-partial"
+              teamNames={MOCK_13_TEAMS}
+              failedTeams={['Team 3', 'Team 7', 'Team 11']}
+              onDismiss={onClearState}
+            />
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  }
+
   // Exhaustive check -- should never reach here
   return null;
 }
@@ -573,6 +668,15 @@ export function PreviewPage() {
               title="Alerts & Modals"
               icon={<AlertCircle className="h-4 w-4 shrink-0 text-primary" />}
               options={ALERT_MODAL_OPTIONS}
+              activeKey={activeState}
+              onSelect={handleSelect}
+              defaultOpen={true}
+            />
+
+            <ControlSection
+              title="Bulk Progress"
+              icon={<Layers className="h-4 w-4 shrink-0 text-primary" />}
+              options={BULK_PROGRESS_OPTIONS}
               activeKey={activeState}
               onSelect={handleSelect}
               defaultOpen={true}

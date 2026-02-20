@@ -4,3 +4,5 @@ node_modules/
 .DS_Store
 npm-debug.log*
 coverage/
+systemFailure-2-20-26.md
+app/ui/tsconfig.tsbuildinfo

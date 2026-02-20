@@ -289,3 +289,136 @@ _Indeterminate._ The exact Sling HTTP status code for the two failed PUTs cannot
 - API tests: 41/41 passing (`npm test` in `services/api/`).
 - UI lint: clean (`npm run lint` in `app/ui/`).
 - UI build: successful (`npm run build` in `app/ui/`).
+
+---
+---
+
+# Incident: Partial Failure on Bulk Team Update (Concurrent Modification Lock)
+
+**Incident ID:** `f9cf6543-a27d-45b1-bce8-4d9d7ce96098`
+**Reported:** 2026-02-20 03:00 UTC / 2026-02-19 10:00 PM ET (via Zapier/Slack)
+**Source:** `sling-scheduler-ui`
+**Status:** Root cause identified
+
+---
+
+## Timeline
+
+| Time (ET) | Event |
+|-----------|-------|
+| 2026-02-19 ~10:00 PM | User opens schedule for 02/21/2026, edits all 13 teams, clicks Save |
+| 2026-02-19 10:00:54 PM | Backend processes grouped bulk update (13 atomic groups, CONCURRENCY=2) |
+| 2026-02-19 10:00:54 PM | 7 teams succeed, 6 teams fail with `SLING_REQUEST_FAILED` (HTTP 417) |
+| 2026-02-19 10:00:54 PM | All 6 failed teams rolled back successfully |
+| 2026-02-19 10:00:55 PM | Error report delivered to Slack via Zapier |
+
+---
+
+## Root Cause
+
+**Sling API concurrent modification lock (HTTP 417).**
+
+All 6 failed teams received the same error from the Sling API:
+
+> "This action cannot be performed now as it affects events that are currently being modified by another user"
+
+**HTTP status 417** is Sling's concurrency guard. When one PUT request begins modifying a shift, Sling locks all related events (same date, location, position). Any concurrent PUT affecting those events is immediately rejected with 417.
+
+### Why this happened
+
+With `CONCURRENCY=2`, teams were processed in batches of 2. Within each batch, both PUTs fire simultaneously via `Promise.allSettled()`. All 13 teams share:
+- Same date: `2026-02-21`
+- Same location: `151378`
+- Same position: `151397`
+
+Sling treats all shifts on the same date/location/position as related events under a single lock. The first PUT in each batch acquires the lock; the second is rejected.
+
+### Evidence: batch-level failure pattern
+
+| Batch | Team A (Result) | Team B (Result) |
+|-------|-----------------|-----------------|
+| 1 | Team 1 (**failed**, 63ms) | Team 2 (success) |
+| 2 | Team 3 (**failed**, 69ms) | Team 4 (success) |
+| 3 | Team 5 (**failed**, 60ms) | Team 6 (success) |
+| 4 | Team 7 (success) | Team 8 (**failed**, 55ms) |
+| 5 | Team 9 (**failed**, 59ms) | Team 11 (success) |
+| 6 | Team 10 (**failed**, 99ms) | Team 12 (success) |
+| 7 | Team 13 (success) | _(solo batch)_ |
+
+In 6 of 7 batches, exactly 1 team failed and 1 succeeded. The solo batch (Team 13) succeeded. This is textbook concurrent write lock behavior.
+
+Failed request durations (55-99ms) are much faster than typical successful Sling PUTs (224-314ms observed in 2/12 logs), confirming Sling rejected these at the lock-check stage without attempting the actual write.
+
+### Why 417 was not retried
+
+The Sling client (`sling.js:4`) only retries transient statuses: `408`, `429`, and `>= 500`. HTTP 417 is not in this set, so each failure was **immediate and final** with zero retry attempts.
+
+### Relationship to 2/12 incident (`bd35292f`)
+
+The 2/12 incident showed the same interleaved success/failure pattern (Teams 1 & 3 failed, Teams 2 & 4 succeeded at `CONCURRENCY=4`). That incident's root cause was listed as indeterminate because Sling error details were not logged at the time. This incident strongly suggests 2/12 was also caused by HTTP 417 concurrent modification locks, not the rate limiting (429) hypothesis.
+
+### Contributing factor: possible concurrent external user
+
+The Sling error message references "another user." It is unconfirmed whether a human user was simultaneously editing the 02/21 schedule in Sling's web UI. However, the batch-level failure pattern proves our own concurrent requests are sufficient to trigger the lock, independent of any external user.
+
+---
+
+## Impact
+
+- **6 of 13 teams were not updated.** Failed teams: 1, 3, 5, 8, 9, 10.
+- **No data loss.** All 6 failed teams were atomically rolled back (`rollback.status: completed`).
+- **7 teams updated successfully.** Teams 2, 4, 6, 7, 11, 12, 13.
+- User was shown: _"Some teams were not updated. Failed teams were safely undone, so their Sling values were preserved."_
+- Error escalated to Slack via Zapier.
+
+---
+
+## System Behavior Verified Correct
+
+- Atomic rollback worked as designed: all 6 failed teams reverted to pre-update state.
+- Error escalation pipeline (UI -> `/api/error-report` -> Zapier -> Slack) delivered successfully.
+- Sling error details (HTTP 417, response body) are fully visible in the error report payload, confirming the 2/13 observability fix (depth limit 4 -> 7) is working.
+- User was kept in bulk edit mode after partial failure (can retry).
+
+---
+
+## Recommended Fixes
+
+### 1. Add HTTP 417 to retry-with-backoff (high priority)
+
+HTTP 417 is a transient condition (the lock clears once the competing write completes). The Sling client should retry 417 responses with a longer backoff than the current 250ms linear delay, since the competing write needs time to finish.
+
+**File:** `services/api/src/clients/sling.js`
+**Change:** Add `417` to `isTransientStatus()` or implement a separate retry path with ~1-2s backoff for 417 specifically.
+
+### 2. Reduce CONCURRENCY to 1 for same-date/location operations (high priority)
+
+Since Sling locks related events during modification, parallel PUTs for shifts on the same date and location will always conflict. Sequential processing (`CONCURRENCY=1`) would eliminate the lock contention entirely for same-schedule bulk edits.
+
+**File:** `services/api/src/routes/updates.js`
+**Consideration:** Could be made conditional -- use `CONCURRENCY=1` when all groups target the same date/location, and higher concurrency when groups target different dates.
+
+### 3. Update 2/12 incident status (low priority)
+
+Reclassify 2/12 incident `bd35292f` from "Indeterminate" to "Likely HTTP 417 concurrent modification lock" based on this incident's evidence.
+
+---
+
+## Relevant Code Paths
+
+| Component | File | Key Detail |
+|-----------|------|------------|
+| Sling client retry logic | `services/api/src/clients/sling.js:4` | `isTransientStatus`: 408, 429, 500+ only; 417 not retried |
+| Batch concurrency | `services/api/src/routes/updates.js:169` | `CONCURRENCY = 2` |
+| Batch processing loop | `services/api/src/routes/updates.js:347-399` | `Promise.allSettled` per batch |
+| Atomic group processing | `services/api/src/routes/updates.js:250-335` | Sequential PUTs within each group |
+| Error report sanitization | `app/ui/src/lib/errors.ts:31` | Depth limit 7 (working correctly) |
+
+---
+
+## Next Steps
+
+1. Decide on fix approach: retry 417 with backoff vs. reduce concurrency to 1 vs. both.
+2. Implement and deploy the chosen fix.
+3. Monitor next multi-team bulk edit for recurrence.
+4. Confirm with operations team whether anyone was editing the 02/21 schedule in Sling's web UI around 10 PM ET on 2/19.

@@ -1,7 +1,7 @@
 import { ApiError } from '../middleware/errors.js';
 
 function isTransientStatus(status) {
-  return status === 408 || status === 429 || status >= 500;
+  return status === 408 || status === 417 || status === 429 || status >= 500;
 }
 
 function delay(ms) {

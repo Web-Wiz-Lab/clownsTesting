@@ -139,6 +139,17 @@ function buildOutboundShift(current, occurrenceId, payload) {
   return outbound;
 }
 
+function extractDateFromOccurrenceId(occurrenceId) {
+  if (!occurrenceId || !occurrenceId.includes(':')) return null;
+  const parts = occurrenceId.split(':');
+  return parts[1] || null;
+}
+
+function extractEventId(calendarShiftId) {
+  if (!calendarShiftId || !String(calendarShiftId).includes(':')) return String(calendarShiftId);
+  return String(calendarShiftId).split(':')[0];
+}
+
 async function performSingleUpdate({ occurrenceId, payload, slingClient, env, requestId, currentShift = null }) {
   validateOccurrenceId(occurrenceId);
   validateUpdateInput(payload);
@@ -166,7 +177,7 @@ function toSuccess(index, result) {
   };
 }
 
-const CONCURRENCY = 2;
+const CONCURRENCY = 1;
 
 async function processFlatUpdates({ updates, slingClient, env, requestId }) {
   if (!Array.isArray(updates) || updates.length === 0) {
@@ -334,6 +345,182 @@ async function processAtomicGroup({ group, groupIndex, slingClient, env, request
   }
 }
 
+async function rollbackCalendarFallback({ applied, slingClient, requestId }) {
+  const failures = [];
+
+  for (let i = applied.length - 1; i >= 0; i -= 1) {
+    const { eventId, originalCalendarShift } = applied[i];
+    const rollbackPayload = { ...originalCalendarShift, id: eventId, openEnd: true };
+
+    try {
+      await slingClient.updateShift(eventId, rollbackPayload, requestId);
+    } catch (error) {
+      failures.push({
+        eventId,
+        error: {
+          code: error?.code || 'CALENDAR_ROLLBACK_FAILED',
+          message: error?.message || 'Calendar fallback rollback failed',
+          details: error?.details || null
+        }
+      });
+    }
+  }
+
+  return {
+    status: failures.length === 0 ? 'completed' : 'failed',
+    failures
+  };
+}
+
+async function processCalendarFallback({ group, groupIndex, slingClient, env, requestId }) {
+  const groupId = group?.groupId || `group-${groupIndex + 1}`;
+  const updates = group?.updates;
+
+  if (!Array.isArray(updates) || updates.length === 0) return null;
+
+  const sampleOccurrenceId = updates[0]?.occurrenceId;
+  const date = extractDateFromOccurrenceId(sampleOccurrenceId);
+  if (!date) return null;
+
+  let calendarShifts;
+  try {
+    calendarShifts = await slingClient.getCalendarShifts(date, requestId);
+  } catch {
+    return null;
+  }
+
+  if (!Array.isArray(calendarShifts) || calendarShifts.length === 0) return null;
+
+  const applied = [];
+  const successResults = [];
+
+  try {
+    for (let i = 0; i < updates.length; i += 1) {
+      const item = updates[i];
+      const occurrenceId = item?.occurrenceId;
+
+      let current;
+      try {
+        current = await slingClient.getShiftById(occurrenceId, requestId);
+      } catch {
+        throw new ApiError('Failed to fetch shift for calendar fallback', {
+          statusCode: 502,
+          code: 'CALENDAR_FALLBACK_FETCH_FAILED',
+          details: { occurrenceId }
+        });
+      }
+
+      const userId = current?.user?.id;
+      if (!userId) {
+        throw new ApiError('Shift has no user ID for calendar matching', {
+          statusCode: 422,
+          code: 'CALENDAR_FALLBACK_NO_USER',
+          details: { occurrenceId }
+        });
+      }
+
+      const calendarShift = calendarShifts.find((cs) => cs?.user?.id === userId);
+      if (!calendarShift) {
+        throw new ApiError('No matching calendar shift found for user', {
+          statusCode: 422,
+          code: 'CALENDAR_FALLBACK_NO_MATCH',
+          details: { occurrenceId, userId }
+        });
+      }
+
+      const eventId = extractEventId(calendarShift.id);
+      const outbound = buildOutboundShift(calendarShift, eventId, item);
+
+      const updatedRaw = await slingClient.updateShift(eventId, outbound, requestId);
+      const updated = unwrapSlingShiftResponse(updatedRaw) || outbound;
+      const normalizedShift = { ...outbound, ...updated };
+
+      applied.push({ eventId, originalCalendarShift: calendarShift });
+      successResults.push(toSuccess(i, {
+        occurrenceId: normalizedShift.id || eventId,
+        updatedShift: normalizeShiftForUi(normalizedShift, env.timezone)
+      }));
+    }
+
+    return {
+      index: groupIndex,
+      groupId,
+      status: 'success',
+      atomic: true,
+      rolledBack: false,
+      counts: { total: updates.length, success: updates.length, failed: 0 },
+      rollback: { status: 'not_needed', failures: [] },
+      results: successResults
+    };
+  } catch (error) {
+    if (applied.length > 0) {
+      const rollback = await rollbackCalendarFallback({ applied, slingClient, requestId });
+      if (rollback.failures.length > 0) {
+        const failedOccurrenceId = updates[successResults.length]?.occurrenceId || null;
+        const failure = toFailure(failedOccurrenceId, error, successResults.length);
+
+        return {
+          index: groupIndex,
+          groupId,
+          status: 'failed',
+          atomic: true,
+          rolledBack: false,
+          counts: { total: updates.length, success: 0, failed: updates.length },
+          failure: failure.error,
+          rollback,
+          results: successResults.concat([failure])
+        };
+      }
+    }
+    return null;
+  }
+}
+
+async function executeSingleGroup({ group, groupIndex, slingClient, env, requestId }) {
+  const atomic = group?.atomic !== false;
+
+  if (!atomic) {
+    try {
+      const flat = await processFlatUpdates({
+        updates: group?.updates || [],
+        slingClient,
+        env,
+        requestId
+      });
+      return {
+        index: groupIndex,
+        groupId: group?.groupId || `group-${groupIndex + 1}`,
+        status: flat.summary === 'ok' ? 'success' : 'failed',
+        atomic: false,
+        rolledBack: false,
+        counts: flat.counts,
+        rollback: { status: 'not_applicable', failures: [] },
+        results: flat.results
+      };
+    } catch (error) {
+      return {
+        index: groupIndex,
+        groupId: group?.groupId || `group-${groupIndex + 1}`,
+        status: 'failed',
+        atomic: false,
+        rolledBack: false,
+        counts: { total: 0, success: 0, failed: 0 },
+        failure: { code: error?.code || 'GROUP_PROCESSING_FAILED', message: error?.message },
+        rollback: { status: 'not_applicable', failures: [] },
+        results: []
+      };
+    }
+  }
+
+  return processAtomicGroup({
+    group,
+    groupIndex,
+    slingClient,
+    env,
+    requestId
+  });
+}
+
 async function processGroupedUpdates({ groups, slingClient, env, requestId }) {
   if (!Array.isArray(groups) || groups.length === 0) {
     throw new ApiError('groups must be a non-empty array', {
@@ -344,58 +531,61 @@ async function processGroupedUpdates({ groups, slingClient, env, requestId }) {
 
   const results = new Array(groups.length);
 
-  for (let start = 0; start < groups.length; start += CONCURRENCY) {
-    const batch = groups.slice(start, start + CONCURRENCY);
-    const batchResults = await Promise.allSettled(
-      batch.map(async (group, batchIndex) => {
-        const index = start + batchIndex;
-        const atomic = group?.atomic !== false;
-
-        if (!atomic) {
-          try {
-            const flat = await processFlatUpdates({
-              updates: group?.updates || [],
-              slingClient,
-              env,
-              requestId
-            });
-            return {
-              index,
-              groupId: group?.groupId || `group-${index + 1}`,
-              status: flat.summary === 'ok' ? 'success' : 'failed',
-              atomic: false,
-              rolledBack: false,
-              counts: flat.counts,
-              rollback: { status: 'not_applicable', failures: [] },
-              results: flat.results
-            };
-          } catch (error) {
-            return {
-              index,
-              groupId: group?.groupId || `group-${index + 1}`,
-              status: 'failed',
-              atomic: false,
-              rolledBack: false,
-              counts: { total: 0, success: 0, failed: 0 },
-              failure: { code: error?.code || 'GROUP_PROCESSING_FAILED', message: error?.message },
-              rollback: { status: 'not_applicable', failures: [] },
-              results: []
-            };
-          }
-        }
-
-        return processAtomicGroup({
-          group,
-          groupIndex: index,
-          slingClient,
-          env,
-          requestId
-        });
-      })
-    );
-    batchResults.forEach((settled, batchIndex) => {
-      results[start + batchIndex] = settled.value;
+  // Layer 1: Sequential processing (CONCURRENCY=1)
+  for (let i = 0; i < groups.length; i += 1) {
+    results[i] = await executeSingleGroup({
+      group: groups[i],
+      groupIndex: i,
+      slingClient,
+      env,
+      requestId
     });
+  }
+
+  // Layer 2: Retry failed groups
+  // Note: each retry calls slingClient.updateShift(), which already retries
+  // 417s internally via isTransientStatus() with exponential backoff. So the
+  // effective occurrence PUT count per group is (clientRetries + 1) * 2 before
+  // falling through to the Layer 3 calendar fallback.
+  const failedIndices = [];
+  for (let i = 0; i < results.length; i += 1) {
+    if (results[i].status === 'failed' && results[i].atomic !== false) {
+      failedIndices.push(i);
+    }
+  }
+
+  for (const idx of failedIndices) {
+    const retryResult = await executeSingleGroup({
+      group: groups[idx],
+      groupIndex: idx,
+      slingClient,
+      env,
+      requestId
+    });
+    if (retryResult.status === 'success') {
+      results[idx] = retryResult;
+    }
+  }
+
+  // Layer 3: Calendar-based fallback for still-failed groups
+  const stillFailedIndices = [];
+  for (let i = 0; i < results.length; i += 1) {
+    if (results[i].status === 'failed' && results[i].atomic !== false) {
+      stillFailedIndices.push(i);
+    }
+  }
+
+  for (const idx of stillFailedIndices) {
+    const fallbackResult = await processCalendarFallback({
+      group: groups[idx],
+      groupIndex: idx,
+      slingClient,
+      env,
+      requestId
+    });
+    if (fallbackResult) {
+      results[idx] = fallbackResult;
+    }
   }
 
   const successGroups = results.filter((group) => group.status === 'success').length;

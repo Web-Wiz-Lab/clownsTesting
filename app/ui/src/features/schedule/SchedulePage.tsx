@@ -302,6 +302,12 @@ export function SchedulePage() {
           open={true}
           message={state.modal.message}
           type={state.modal.type}
+          bulk={state.modal.teamNames ? {
+            teamNames: state.modal.teamNames,
+            failedTeams: state.modal.failedTeams ?? [],
+            apiDone: state.modal.apiDone ?? false,
+            onDismiss: actions.dismissModal,
+          } : undefined}
         />
       )}
     </div>
